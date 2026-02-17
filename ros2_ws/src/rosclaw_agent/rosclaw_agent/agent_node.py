@@ -65,16 +65,23 @@ class RosClawAgentNode(Node):
     def __init__(self) -> None:
         super().__init__("rosclaw_agent")
 
-        # Environment config
-        self.signaling_url: str = os.environ.get("ROSCLAW_SIGNALING_URL", "ws://localhost:8765")
-        self.robot_token: str = os.environ.get("ROSCLAW_ROBOT_TOKEN", "")
-        self.robot_key: str = os.environ.get("ROSCLAW_ROBOT_KEY", "")
-        self.robot_id: str = os.environ.get("ROSCLAW_ROBOT_ID", "robot_1")
+        # Parameters: --ros-args -p key:=value > env var > hardcoded default
+        self.declare_parameter("signaling_url", os.environ.get("ROSCLAW_SIGNALING_URL", "ws://localhost:8000"))
+        self.declare_parameter("robot_token", os.environ.get("ROSCLAW_ROBOT_TOKEN", "your-secret-token-1"))
+        self.declare_parameter("robot_key", os.environ.get("ROSCLAW_ROBOT_KEY", "my-secret-key"))
+        self.declare_parameter("robot_id", os.environ.get("ROSCLAW_ROBOT_ID", "robot_1"))
+
+        self.signaling_url: str = self.get_parameter("signaling_url").value
+        self.robot_token: str = self.get_parameter("robot_token").value
+        self.robot_key: str = self.get_parameter("robot_key").value
+        self.robot_id: str = self.get_parameter("robot_id").value
 
         # WebRTC state
         self.pc: RTCPeerConnection | None = None
         self.data_channel: Any = None
         self.ws: Any = None
+        self.current_room_id: str = ""
+        self.frontend_peer_id: str = ""
 
         # ROS2 bridge state — tracks active publishers, subscribers, service clients
         # Prefixed with _ to avoid shadowing Node's read-only properties
@@ -108,7 +115,7 @@ class RosClawAgentNode(Node):
 
             # Step 1: ROBOT_CONNECT
             await ws.send(json.dumps({
-                "type": "ROBOT_CONNECT",
+                "type": "robot_connect",
                 "robot_token": self.robot_token,
                 "robot_id": self.robot_id,
                 "capabilities": self._get_capabilities(),
@@ -127,6 +134,9 @@ class RosClawAgentNode(Node):
                     self.get_logger().info(
                         f"Peer joined: {msg.get('peer_id')} ({msg.get('peer_type')})"
                     )
+                    if msg.get("peer_type") == "frontend":
+                        self.frontend_peer_id = msg["peer_id"]
+                        await self._create_offer(ws)
 
                 elif msg_type == "answer":
                     await self._handle_answer(msg)
@@ -147,10 +157,10 @@ class RosClawAgentNode(Node):
                     await self._cleanup_webrtc()
 
                 elif msg_type == "error":
-                    self.get_logger().error(f"Signaling error: {msg.get('message')}")
+                    self.get_logger().error(f"Signaling error: {msg}")
 
     async def _handle_session_invitation(self, ws: Any, msg: dict) -> None:
-        """Validate robot_key, accept session, join room, create offer."""
+        """Validate robot_key and accept session. Server adds robot to room automatically."""
         session_id = msg["session_id"]
         room_id = msg["room_id"]
         received_key = msg.get("robot_key", "")
@@ -158,7 +168,7 @@ class RosClawAgentNode(Node):
         if self.robot_key and received_key != self.robot_key:
             self.get_logger().warning(f"Rejecting session {session_id}: invalid robot_key")
             await ws.send(json.dumps({
-                "type": "SESSION_REJECTED",
+                "type": "session_rejected",
                 "session_id": session_id,
                 "robot_id": self.robot_id,
                 "reason": "invalid_robot_key",
@@ -169,22 +179,14 @@ class RosClawAgentNode(Node):
 
         # Accept session
         await ws.send(json.dumps({
-            "type": "SESSION_ACCEPTED",
+            "type": "session_accepted",
             "session_id": session_id,
             "robot_id": self.robot_id,
         }))
 
-        # Join room
-        await ws.send(json.dumps({
-            "type": "JOIN_ROOM",
-            "room_id": room_id,
-            "peer_id": self.robot_id,
-            "peer_type": "robot",
-            "session_id": session_id,
-        }))
-
-        # Create WebRTC peer connection and offer
-        await self._create_offer(ws)
+        # Server adds robot to room automatically on session_accepted.
+        # Offer is deferred until frontend peer joins (peer_joined event).
+        self.current_room_id = room_id
 
     async def _create_offer(self, ws: Any) -> None:
         """Create RTCPeerConnection with data channels and send SDP offer."""
@@ -226,17 +228,27 @@ class RosClawAgentNode(Node):
 
         await ws.send(json.dumps({
             "type": "offer",
-            "sdp": self.pc.localDescription.sdp,
+            "room_id": self.current_room_id,
+            "peer_id": self.robot_id,
+            "target_peer_id": self.frontend_peer_id,
+            "data": {
+                "type": self.pc.localDescription.type,
+                "sdp": self.pc.localDescription.sdp,
+            },
         }))
-        self.get_logger().info("Sent SDP offer")
+        self.get_logger().info(f"Sent SDP offer to {self.frontend_peer_id}")
 
     async def _handle_answer(self, msg: dict) -> None:
         """Set remote SDP answer."""
         if not self.pc:
             return
-        answer = RTCSessionDescription(sdp=msg["sdp"], type="answer")
+        answer_data = msg.get("data", {})
+        if not answer_data.get("sdp"):
+            self.get_logger().warning("Received answer with no SDP data")
+            return
+        answer = RTCSessionDescription(sdp=answer_data["sdp"], type=answer_data.get("type", "answer"))
         await self.pc.setRemoteDescription(answer)
-        self.get_logger().info("Set remote SDP answer")
+        self.get_logger().info(f"Set remote SDP answer from {msg.get('from_peer_id')}")
 
     async def _handle_ice_candidate(self, msg: dict) -> None:
         """Add remote ICE candidate."""
