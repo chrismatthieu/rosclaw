@@ -77,9 +77,10 @@ class RosClawAgentNode(Node):
         self.ws: Any = None
 
         # ROS2 bridge state — tracks active publishers, subscribers, service clients
-        self.publishers: dict[str, Any] = {}
-        self.subscribers: dict[str, Any] = {}
-        self.service_clients: dict[str, Any] = {}
+        # Prefixed with _ to avoid shadowing Node's read-only properties
+        self._pubs: dict[str, Any] = {}
+        self._subs: dict[str, Any] = {}
+        self._srv_clients: dict[str, Any] = {}
 
         self.get_logger().info(
             f"RosClaw agent initialized: robot_id={self.robot_id}, "
@@ -155,7 +156,13 @@ class RosClawAgentNode(Node):
         received_key = msg.get("robot_key", "")
 
         if self.robot_key and received_key != self.robot_key:
-            self.get_logger().warn(f"Rejecting session {session_id}: invalid robot_key")
+            self.get_logger().warning(f"Rejecting session {session_id}: invalid robot_key")
+            await ws.send(json.dumps({
+                "type": "SESSION_REJECTED",
+                "session_id": session_id,
+                "robot_id": self.robot_id,
+                "reason": "invalid_robot_key",
+            }))
             return
 
         self.get_logger().info(f"Accepting session {session_id}")
@@ -270,7 +277,7 @@ class RosClawAgentNode(Node):
             elif op == "cancel_action_goal":
                 self._handle_cancel_action_goal(msg)
             else:
-                self.get_logger().warn(f"Unknown op: {op}")
+                self.get_logger().warning(f"Unknown op: {op}")
         except Exception as e:
             self.get_logger().error(f"Error handling op={op}: {e}")
             if msg_id:
@@ -287,11 +294,11 @@ class RosClawAgentNode(Node):
         msg_type_str = msg.get("type", "")
         payload = msg.get("msg", {})
 
-        if topic not in self.publishers:
+        if topic not in self._pubs:
             msg_class = get_message_class(msg_type_str)
-            self.publishers[topic] = self.create_publisher(msg_class, topic, 10)
+            self._pubs[topic] = self.create_publisher(msg_class, topic, 10)
 
-        pub = self.publishers[topic]
+        pub = self._pubs[topic]
         ros_msg = dict_to_msg(pub.msg_type(), payload)
         pub.publish(ros_msg)
 
@@ -300,7 +307,7 @@ class RosClawAgentNode(Node):
         topic = msg["topic"]
         msg_type_str = msg.get("type", "")
 
-        if topic in self.subscribers:
+        if topic in self._subs:
             return  # Already subscribed
 
         msg_class = get_message_class(msg_type_str)
@@ -314,13 +321,13 @@ class RosClawAgentNode(Node):
             })
 
         sub = self.create_subscription(msg_class, topic, callback, 10)
-        self.subscribers[topic] = sub
+        self._subs[topic] = sub
 
     def _handle_unsubscribe(self, msg: dict) -> None:
         """Unsubscribe from a local ROS2 topic."""
         topic = msg["topic"]
-        if topic in self.subscribers:
-            self.destroy_subscription(self.subscribers.pop(topic))
+        if topic in self._subs:
+            self.destroy_subscription(self._subs.pop(topic))
 
     async def _handle_call_service(self, msg: dict, msg_id: str | None) -> None:
         """Call a local ROS2 service and send the response."""
@@ -330,12 +337,13 @@ class RosClawAgentNode(Node):
 
         srv_class = get_service_class(srv_type_str)
 
-        if service not in self.service_clients:
-            self.service_clients[service] = self.create_client(srv_class, service)
+        if service not in self._srv_clients:
+            self._srv_clients[service] = self.create_client(srv_class, service)
 
-        client = self.service_clients[service]
+        client = self._srv_clients[service]
 
-        if not client.wait_for_service(timeout_sec=5.0):
+        available = await asyncio.to_thread(client.wait_for_service, timeout_sec=5.0)
+        if not available:
             self._send_response({
                 "op": "service_response",
                 "id": msg_id,
@@ -348,9 +356,9 @@ class RosClawAgentNode(Node):
         request = dict_to_msg(srv_class.Request(), args)
         future = client.call_async(request)
 
-        # Wait for result in a non-blocking way
-        while not future.done():
-            await asyncio.sleep(0.01)
+        event = asyncio.Event()
+        future.add_done_callback(lambda _: event.set())
+        await event.wait()
 
         result = future.result()
         self._send_response({
@@ -372,7 +380,8 @@ class RosClawAgentNode(Node):
 
         action_client = RclpyActionClient(self, action_class, action_name)
 
-        if not action_client.wait_for_server(timeout_sec=5.0):
+        available = await asyncio.to_thread(action_client.wait_for_server, timeout_sec=5.0)
+        if not available:
             self._send_response({
                 "op": "action_result",
                 "id": msg_id,
@@ -394,8 +403,9 @@ class RosClawAgentNode(Node):
             }),
         )
 
-        while not send_goal_future.done():
-            await asyncio.sleep(0.01)
+        goal_event = asyncio.Event()
+        send_goal_future.add_done_callback(lambda _: goal_event.set())
+        await goal_event.wait()
 
         goal_handle = send_goal_future.result()
         if not goal_handle.accepted:
@@ -410,8 +420,9 @@ class RosClawAgentNode(Node):
             return
 
         result_future = goal_handle.get_result_async()
-        while not result_future.done():
-            await asyncio.sleep(0.01)
+        result_event = asyncio.Event()
+        result_future.add_done_callback(lambda _: result_event.set())
+        await result_event.wait()
 
         result = result_future.result()
         self._send_response({
@@ -455,17 +466,17 @@ class RosClawAgentNode(Node):
 
     def _cleanup_ros_bridge(self) -> None:
         """Clean up all ROS2 subscriptions and publishers created for the session."""
-        for sub in self.subscribers.values():
+        for sub in self._subs.values():
             self.destroy_subscription(sub)
-        self.subscribers.clear()
+        self._subs.clear()
 
-        for pub in self.publishers.values():
+        for pub in self._pubs.values():
             self.destroy_publisher(pub)
-        self.publishers.clear()
+        self._pubs.clear()
 
-        for client in self.service_clients.values():
+        for client in self._srv_clients.values():
             self.destroy_client(client)
-        self.service_clients.clear()
+        self._srv_clients.clear()
 
 
 async def async_main() -> None:
