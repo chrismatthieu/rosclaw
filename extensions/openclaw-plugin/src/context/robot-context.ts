@@ -14,6 +14,11 @@ interface DiscoveryCache {
 const CACHE_TTL_MS = 60_000; // 60s
 let cache: DiscoveryCache | null = null;
 
+/** Clear the discovery cache so the next agent start re-discovers capabilities. */
+export function clearDiscoveryCache(): void {
+  cache = null;
+}
+
 /**
  * Register the before_agent_start hook to inject robot capabilities
  * into the AI agent's system context.
