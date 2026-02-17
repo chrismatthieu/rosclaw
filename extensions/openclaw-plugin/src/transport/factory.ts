@@ -15,8 +15,18 @@ export async function createTransport(config: TransportConfig): Promise<RosTrans
     }
 
     case "local": {
-      const { LocalTransport } = await import("./local/transport.js");
-      return new LocalTransport(config.local);
+      try {
+        const { LocalTransport } = await import("./local/transport.js");
+        return new LocalTransport(config.local);
+      } catch (e: any) {
+        if (e?.code === "ERR_MODULE_NOT_FOUND" || e?.code === "MODULE_NOT_FOUND") {
+          throw new Error(
+            'Mode A (local) requires the "rclnodejs" package. ' +
+              "Install it with: pnpm add rclnodejs (with ROS2 workspace sourced)",
+          );
+        }
+        throw e;
+      }
     }
 
     case "webrtc": {

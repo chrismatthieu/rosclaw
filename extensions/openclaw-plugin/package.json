@@ -15,6 +15,9 @@
     "ws": "^8.18.0",
     "zod": "^3.24.0"
   },
+  "optionalDependencies": {
+    "rclnodejs": "^1.7.0"
+  },
   "devDependencies": {
     "@types/node": "^20.17.0",
     "@types/ws": "^8.5.13",
