@@ -311,7 +311,7 @@ class RosClawAgentNode(Node):
             self._pubs[topic] = self.create_publisher(msg_class, topic, 10)
 
         pub = self._pubs[topic]
-        ros_msg = dict_to_msg(pub.msg_type(), payload)
+        ros_msg = dict_to_msg(payload, pub.msg_type())
         pub.publish(ros_msg)
 
     def _handle_subscribe(self, msg: dict) -> None:
@@ -365,7 +365,7 @@ class RosClawAgentNode(Node):
             })
             return
 
-        request = dict_to_msg(srv_class.Request(), args)
+        request = dict_to_msg(args, srv_class.Request())
         future = client.call_async(request)
 
         event = asyncio.Event()
@@ -404,7 +404,7 @@ class RosClawAgentNode(Node):
             action_client.destroy()
             return
 
-        goal_msg = dict_to_msg(action_class.Goal(), args)
+        goal_msg = dict_to_msg(args, action_class.Goal())
         send_goal_future = action_client.send_goal_async(
             goal_msg,
             feedback_callback=lambda feedback: self._send_response({
