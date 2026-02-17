@@ -35,7 +35,7 @@ export class SignalingClient {
   // --- REST API ---
 
   async discoverRobots(): Promise<DiscoverResponse> {
-    const res = await fetch(`${this.apiUrl}/api/robots`);
+    const res = await fetch(`${this.apiUrl}/api/robots/`);
     if (!res.ok) {
       throw new Error(`Discovery failed: ${res.status} ${res.statusText}`);
     }
@@ -129,10 +129,10 @@ export class SignalingClient {
     this.ws.send(JSON.stringify(message));
   }
 
-  /** Send JOIN_ROOM to enter the session room. */
+  /** Send join_room to enter the session room. */
   joinRoom(roomId: string, peerId: string, peerType: "frontend" | "robot", sessionId: string): void {
     this.send({
-      type: "JOIN_ROOM",
+      type: "join_room",
       room_id: roomId,
       peer_id: peerId,
       peer_type: peerType,
@@ -141,10 +141,12 @@ export class SignalingClient {
   }
 
   /** Send an SDP answer back to the peer. */
-  sendAnswer(sdp: string, targetPeerId?: string): void {
+  sendAnswer(sdp: string, roomId: string, peerId: string, targetPeerId?: string): void {
     this.send({
       type: "answer",
-      sdp,
+      data: { type: "answer", sdp },
+      room_id: roomId,
+      peer_id: peerId,
       target_peer_id: targetPeerId,
     } satisfies AnswerMessage);
   }
@@ -153,9 +155,11 @@ export class SignalingClient {
   sendIceCandidate(candidate: string, sdpMid: string | null, sdpMLineIndex: number | null, targetPeerId?: string): void {
     this.send({
       type: "ice_candidate",
-      candidate,
-      sdpMid,
-      sdpMLineIndex,
+      data: {
+        candidate,
+        sdpMid,
+        sdpMLineIndex,
+      },
       target_peer_id: targetPeerId,
     } satisfies IceCandidateMessage);
   }

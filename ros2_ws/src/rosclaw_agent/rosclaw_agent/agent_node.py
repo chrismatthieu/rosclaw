@@ -222,9 +222,12 @@ class RosClawAgentNode(Node):
             if candidate:
                 await ws.send(json.dumps({
                     "type": "ice_candidate",
-                    "candidate": candidate.candidate,
-                    "sdpMid": candidate.sdpMid,
-                    "sdpMLineIndex": candidate.sdpMLineIndex,
+                    "data": {
+                        "candidate": candidate.candidate,
+                        "sdpMid": candidate.sdpMid,
+                        "sdpMLineIndex": candidate.sdpMLineIndex,
+                    },
+                    "target_peer_id": self.frontend_peer_id,
                 }))
 
         # Create and send offer
@@ -260,8 +263,9 @@ class RosClawAgentNode(Node):
         if not self.pc:
             return
         from aiortc import RTCIceCandidate
-        # aiortc expects candidate parsing — use the raw candidate string
-        candidate_str = msg.get("candidate", "")
+        # ICE candidate fields are wrapped in a data object
+        data = msg.get("data", {})
+        candidate_str = data.get("candidate", "")
         if candidate_str:
             # aiortc addIceCandidate expects an RTCIceCandidate, but we can
             # pass the raw info. For simplicity, just log — ICE gathering
@@ -351,6 +355,35 @@ class RosClawAgentNode(Node):
         service = msg["service"]
         srv_type_str = msg.get("type", "")
         args = msg.get("args", {})
+
+        # Intercept rosapi introspection calls — no rosapi node in Mode C
+        if service == "/rosapi/topics":
+            topics, types = [], []
+            for name, type_list in self.get_topic_names_and_types():
+                topics.append(name)
+                types.append(type_list[0] if type_list else "")
+            self._send_response({
+                "op": "service_response",
+                "id": msg_id,
+                "service": service,
+                "result": True,
+                "values": {"topics": topics, "types": types},
+            })
+            return
+
+        if service == "/rosapi/services":
+            services, types = [], []
+            for name, type_list in self.get_service_names_and_types():
+                services.append(name)
+                types.append(type_list[0] if type_list else "")
+            self._send_response({
+                "op": "service_response",
+                "id": msg_id,
+                "service": service,
+                "result": True,
+                "values": {"services": services, "types": types},
+            })
+            return
 
         srv_class = get_service_class(srv_type_str)
 

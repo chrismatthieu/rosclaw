@@ -14,9 +14,8 @@ export interface ConnectRequest {
 }
 
 export interface ConnectResponse {
-  session_id: string;
+  session: { session_id: string };
   room_id: string;
-  status: string;
 }
 
 export interface DisconnectResponse {
@@ -29,9 +28,7 @@ export interface RobotInfo {
   capabilities?: string[];
 }
 
-export interface DiscoverResponse {
-  robots: RobotInfo[];
-}
+export type DiscoverResponse = RobotInfo[];
 
 // --- WebSocket signaling messages ---
 
@@ -44,7 +41,7 @@ export interface SignalingMessage {
 // Client → Server
 
 export interface JoinRoomMessage extends SignalingMessage {
-  type: "JOIN_ROOM";
+  type: "join_room";
   room_id: string;
   peer_id: string;
   peer_type: "frontend" | "robot";
@@ -52,35 +49,40 @@ export interface JoinRoomMessage extends SignalingMessage {
 }
 
 export interface RobotConnectMessage extends SignalingMessage {
-  type: "ROBOT_CONNECT";
+  type: "robot_connect";
   robot_token: string;
   robot_id: string;
   capabilities?: string[];
 }
 
 export interface SessionAcceptedMessage extends SignalingMessage {
-  type: "SESSION_ACCEPTED";
+  type: "session_accepted";
   session_id: string;
   robot_id: string;
 }
 
 export interface OfferMessage extends SignalingMessage {
   type: "offer";
-  sdp: string;
+  data: { type: string; sdp: string };
+  from_peer_id?: string;
   target_peer_id?: string;
 }
 
 export interface AnswerMessage extends SignalingMessage {
   type: "answer";
-  sdp: string;
+  data: { type: string; sdp: string };
+  room_id?: string;
+  peer_id?: string;
   target_peer_id?: string;
 }
 
 export interface IceCandidateMessage extends SignalingMessage {
   type: "ice_candidate";
-  candidate: string;
-  sdpMid: string | null;
-  sdpMLineIndex: number | null;
+  data: {
+    candidate: string;
+    sdpMid: string | null;
+    sdpMLineIndex: number | null;
+  };
   target_peer_id?: string;
 }
 

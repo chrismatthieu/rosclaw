@@ -66,6 +66,8 @@ export class WebRTCTransport implements RosTransport {
   private pendingRequests = new Map<string, PendingRequest>();
   private idCounter = 0;
   private sessionId: string | null = null;
+  private roomId: string | null = null;
+  private peerId: string | null = null;
   private robotPeerId: string | null = null;
 
   constructor(options: WebRTCTransportOptions) {
@@ -85,8 +87,9 @@ export class WebRTCTransport implements RosTransport {
         robot_id: this.options.robotId,
         robot_key: this.options.robotKey,
       });
-      this.sessionId = connectRes.session_id;
-      const roomId = connectRes.room_id;
+      this.sessionId = connectRes.session.session_id;
+      this.roomId = connectRes.room_id;
+      this.peerId = userId;
 
       // Step 2: Connect signaling WebSocket
       await this.signaling.connectWs();
@@ -103,7 +106,7 @@ export class WebRTCTransport implements RosTransport {
       });
 
       // Step 4: Join room
-      this.signaling.joinRoom(roomId, userId, "frontend", this.sessionId);
+      this.signaling.joinRoom(this.roomId, userId, "frontend", this.sessionId);
 
       // Step 5: Wait for data channel to be established
       await connected;
@@ -414,7 +417,7 @@ export class WebRTCTransport implements RosTransport {
       case "ice_candidate": {
         const iceMsg = msg as IceCandidateMessage;
         if (this.pc) {
-          this.pc.addRemoteCandidate(iceMsg.candidate, iceMsg.sdpMid ?? "0");
+          this.pc.addRemoteCandidate(iceMsg.data.candidate, iceMsg.data.sdpMid ?? "0");
         }
         break;
       }
@@ -479,10 +482,10 @@ export class WebRTCTransport implements RosTransport {
     });
 
     // Set remote offer and create answer
-    this.pc.setRemoteDescription(offer.sdp, DescriptionType.Offer);
+    this.pc.setRemoteDescription(offer.data.sdp, DescriptionType.Offer);
     const answer = this.pc.localDescription();
     if (answer) {
-      this.signaling.sendAnswer(answer.sdp, this.robotPeerId ?? undefined);
+      this.signaling.sendAnswer(answer.sdp, this.roomId!, this.peerId!, this.robotPeerId ?? undefined);
     } else {
       clearTimeout(timeout);
       onError(new Error("Failed to create SDP answer"));
