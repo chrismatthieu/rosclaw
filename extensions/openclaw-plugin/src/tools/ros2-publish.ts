@@ -1,40 +1,39 @@
-import type { OpenClawPluginAPI } from "../../index.js";
+import { Type } from "@sinclair/typebox";
+import type { OpenClawPluginApi } from "../plugin-api.js";
 import { getTransport } from "../service.js";
 
 /**
  * Register the ros2_publish tool with the AI agent.
  * Allows publishing messages to any ROS2 topic.
  */
-export function registerPublishTool(api: OpenClawPluginAPI): void {
+export function registerPublishTool(api: OpenClawPluginApi): void {
   api.registerTool({
     name: "ros2_publish",
+    label: "ROS2 Publish",
     description:
       "Publish a message to a ROS2 topic. Use this to send commands to the robot " +
       "(e.g., velocity commands to /cmd_vel, navigation goals, etc.).",
-    parameters: {
-      type: "object",
-      properties: {
-        topic: {
-          type: "string",
-          description: "The ROS2 topic name (e.g., '/cmd_vel')",
-        },
-        type: {
-          type: "string",
-          description: "The ROS2 message type (e.g., 'geometry_msgs/msg/Twist')",
-        },
-        message: {
-          type: "object",
-          description: "The message payload matching the ROS2 message type schema",
-        },
-      },
-      required: ["topic", "type", "message"],
-    },
+    parameters: Type.Object({
+      topic: Type.String({ description: "The ROS2 topic name (e.g., '/cmd_vel')" }),
+      type: Type.String({ description: "The ROS2 message type (e.g., 'geometry_msgs/msg/Twist')" }),
+      message: Type.Record(Type.String(), Type.Unknown(), {
+        description: "The message payload matching the ROS2 message type schema",
+      }),
+    }),
 
-    async execute(params: { topic: string; type: string; message: Record<string, unknown> }) {
-      // TODO: Implement full publish logic with error handling
+    async execute(_toolCallId, params) {
+      const topic = params["topic"] as string;
+      const type = params["type"] as string;
+      const message = params["message"] as Record<string, unknown>;
+
       const transport = getTransport();
-      transport.publish({ topic: params.topic, type: params.type, msg: params.message });
-      return { success: true, topic: params.topic, type: params.type };
+      transport.publish({ topic, type, msg: message });
+
+      const result = { success: true, topic, type };
+      return {
+        content: [{ type: "text", text: JSON.stringify(result) }],
+        details: result,
+      };
     },
   });
 }

@@ -1,0 +1,120 @@
+/**
+ * Type declarations matching the real OpenClaw plugin SDK.
+ *
+ * Only the subset used by the rosclaw plugin is declared here.
+ * These types mirror openclaw/plugin-sdk so that the plugin compiles
+ * without importing the SDK at build time (it is provided at runtime).
+ */
+
+import type { TSchema } from "@sinclair/typebox";
+
+// --- Logger ---
+
+export interface PluginLogger {
+  info(msg: string): void;
+  warn(msg: string): void;
+  error(msg: string): void;
+}
+
+// --- Tools ---
+
+export interface AgentTool {
+  name: string;
+  label: string;
+  description: string;
+  parameters: TSchema;
+  execute(
+    toolCallId: string,
+    params: Record<string, unknown>,
+    signal?: AbortSignal,
+  ): Promise<ToolResult>;
+}
+
+export interface ToolResult {
+  content: ToolContent[];
+  details?: unknown;
+}
+
+export type ToolContent =
+  | { type: "text"; text: string }
+  | { type: "image"; data: string; mimeType: string };
+
+// --- Services ---
+
+export interface ServiceContext {
+  config: Record<string, unknown>;
+  stateDir: string;
+  logger: PluginLogger;
+}
+
+export interface PluginService {
+  id: string;
+  start(ctx: ServiceContext): Promise<void>;
+  stop?(ctx: ServiceContext): Promise<void>;
+}
+
+// --- Commands ---
+
+export interface CommandContext {
+  config: Record<string, unknown>;
+  logger: PluginLogger;
+}
+
+export interface PluginCommand {
+  name: string;
+  description: string;
+  handler(ctx: CommandContext): Promise<CommandResult> | CommandResult;
+}
+
+export interface CommandResult {
+  text: string;
+}
+
+// --- Hooks ---
+
+export interface BeforeAgentStartEvent {
+  prompt: string;
+}
+
+export interface BeforeAgentStartResult {
+  prependContext?: string;
+}
+
+export type BeforeAgentStartHandler = (
+  event: BeforeAgentStartEvent,
+  ctx: HookContext,
+) => Promise<BeforeAgentStartResult | void> | BeforeAgentStartResult | void;
+
+export interface BeforeToolCallEvent {
+  toolName: string;
+  params: Record<string, unknown>;
+}
+
+export interface BeforeToolCallResult {
+  block?: boolean;
+  blockReason?: string;
+}
+
+export type BeforeToolCallHandler = (
+  event: BeforeToolCallEvent,
+  ctx: HookContext,
+) => Promise<BeforeToolCallResult | void> | BeforeToolCallResult | void;
+
+export interface HookContext {
+  config: Record<string, unknown>;
+  logger: PluginLogger;
+}
+
+// --- Plugin API ---
+
+export interface OpenClawPluginApi {
+  pluginConfig?: Record<string, unknown>;
+  logger: PluginLogger;
+
+  registerTool(tool: AgentTool, opts?: { name?: string }): void;
+  registerService(service: PluginService): void;
+  registerCommand(command: PluginCommand): void;
+
+  on(hookName: "before_agent_start", handler: BeforeAgentStartHandler): void;
+  on(hookName: "before_tool_call", handler: BeforeToolCallHandler): void;
+}

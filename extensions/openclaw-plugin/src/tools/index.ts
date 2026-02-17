@@ -1,4 +1,4 @@
-import type { OpenClawPluginAPI } from "../../index.js";
+import type { OpenClawPluginApi } from "../plugin-api.js";
 import { registerPublishTool } from "./ros2-publish.js";
 import { registerSubscribeTool } from "./ros2-subscribe.js";
 import { registerServiceTool } from "./ros2-service.js";
@@ -10,7 +10,7 @@ import { registerCameraTool } from "./ros2-camera.js";
 /**
  * Register all ROS2 tools with the OpenClaw AI agent.
  */
-export function registerTools(api: OpenClawPluginAPI): void {
+export function registerTools(api: OpenClawPluginApi): void {
   registerPublishTool(api);
   registerSubscribeTool(api);
   registerServiceTool(api);

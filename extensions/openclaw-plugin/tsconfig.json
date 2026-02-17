@@ -2,13 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "."
+    "rootDir": "./src"
   },
-  "include": ["index.ts", "src"],
-  "references": [
-    { "path": "../../packages/transport" },
-    { "path": "../../packages/rosbridge-client" },
-    { "path": "../../packages/transport-local" },
-    { "path": "../../packages/transport-webrtc" }
-  ]
+  "include": ["src"]
 }

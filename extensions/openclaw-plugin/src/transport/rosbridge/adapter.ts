@@ -1,5 +1,5 @@
+import type { RosTransport } from "../transport.js";
 import type {
-  RosTransport,
   ConnectionStatus,
   ConnectionHandler,
   Subscription,
@@ -13,7 +13,7 @@ import type {
   ServiceInfo,
   ActionInfo,
   MessageHandler,
-} from "@rosclaw/transport";
+} from "../types.js";
 import { RosbridgeClient } from "./client.js";
 import { TopicPublisher, TopicSubscriber } from "./topics.js";
 import { callService } from "./services.js";
@@ -124,8 +124,25 @@ export class RosbridgeTransport implements RosTransport {
   }
 
   async listActions(): Promise<ActionInfo[]> {
-    // TODO: rosapi does not have a built-in action listing service.
-    // This will need to use rosclaw_discovery or a custom rosapi extension.
-    return [];
+    // rosapi has no built-in action listing. Heuristic: action servers expose
+    // topics matching */_action/feedback. Extract action names from that pattern.
+    const topics = await this.listTopics();
+    const actions: ActionInfo[] = [];
+    const feedbackSuffix = "/_action/feedback";
+
+    for (const topic of topics) {
+      if (topic.name.endsWith(feedbackSuffix)) {
+        const actionName = topic.name.slice(0, -feedbackSuffix.length);
+        // Feedback type is like "pkg/action/Name_FeedbackMessage"
+        // Extract base action type by stripping "_FeedbackMessage" suffix
+        let actionType = topic.type;
+        if (actionType.endsWith("_FeedbackMessage")) {
+          actionType = actionType.slice(0, -"_FeedbackMessage".length);
+        }
+        actions.push({ name: actionName, type: actionType });
+      }
+    }
+
+    return actions;
   }
 }

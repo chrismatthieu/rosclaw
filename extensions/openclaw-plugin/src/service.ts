@@ -1,6 +1,7 @@
-import type { RosTransport, TransportConfig } from "@rosclaw/transport";
-import { createTransport } from "@rosclaw/transport";
-import type { OpenClawPluginAPI } from "../index.js";
+import type { TransportConfig } from "./transport/types.js";
+import type { RosTransport } from "./transport/transport.js";
+import { createTransport } from "./transport/factory.js";
+import type { OpenClawPluginApi } from "./plugin-api.js";
 
 /** Shared transport instance for all tools. */
 let transport: RosTransport | null = null;
@@ -17,75 +18,91 @@ export function getTransport(): RosTransport {
  * Register the ROS2 transport connection as an OpenClaw managed service.
  * The service handles connection lifecycle (connect on start, disconnect on stop).
  *
- * Reads `transport.mode` from plugin config to determine which adapter to use:
+ * Reads transport config from `pluginConfig` to determine which adapter to use:
  * - "rosbridge" (default) — WebSocket to rosbridge_server (Mode B)
  * - "local" — direct DDS on same machine (Mode A)
  * - "webrtc" — WebRTC data channel via signaling server (Mode C)
  */
-export function registerService(api: OpenClawPluginAPI): void {
-  const mode = api.getConfig<string>("transport.mode") ?? "rosbridge";
+export function registerService(api: OpenClawPluginApi): void {
+  const transportCfg = api.pluginConfig?.["transport"] as { mode?: string } | undefined;
+  const mode = transportCfg?.mode ?? "rosbridge";
 
   api.registerService({
-    name: "ros2-transport",
-    description: `ROS2 transport connection (mode: ${mode})`,
+    id: "ros2-transport",
 
-    async start() {
+    async start(_ctx) {
       const config = buildTransportConfig(api, mode);
-      api.log.info(`Connecting to ROS2 via ${mode} transport...`);
+      api.logger.info(`Connecting to ROS2 via ${mode} transport...`);
 
       transport = await createTransport(config);
 
-      transport.onConnection((status) => {
-        api.log.info(`ROS2 transport status: ${status}`);
+      transport.onConnection((status: string) => {
+        api.logger.info(`ROS2 transport status: ${status}`);
       });
 
       await transport.connect();
-      api.log.info(`ROS2 transport connected (mode: ${mode})`);
+      api.logger.info(`ROS2 transport connected (mode: ${mode})`);
     },
 
-    async stop() {
+    async stop(_ctx) {
       if (transport) {
         await transport.disconnect();
         transport = null;
-        api.log.info("ROS2 transport disconnected");
+        api.logger.info("ROS2 transport disconnected");
       }
     },
   });
 }
 
-function buildTransportConfig(api: OpenClawPluginAPI, mode: string): TransportConfig {
+function buildTransportConfig(api: OpenClawPluginApi, mode: string): TransportConfig {
   switch (mode) {
-    case "rosbridge":
+    case "rosbridge": {
+      const rb = api.pluginConfig?.["rosbridge"] as {
+        url?: string;
+        reconnect?: boolean;
+        reconnectInterval?: number;
+      } | undefined;
       return {
         mode: "rosbridge",
         rosbridge: {
-          url: api.getConfig<string>("rosbridge.url") ?? "ws://localhost:9090",
-          reconnect: api.getConfig<boolean>("rosbridge.reconnect") ?? true,
-          reconnectInterval: api.getConfig<number>("rosbridge.reconnectInterval") ?? 3000,
+          url: rb?.url ?? "ws://localhost:9090",
+          reconnect: rb?.reconnect ?? true,
+          reconnectInterval: rb?.reconnectInterval ?? 3000,
         },
       };
+    }
 
-    case "local":
+    case "local": {
+      const local = api.pluginConfig?.["local"] as { domainId?: number } | undefined;
       return {
         mode: "local",
         local: {
-          domainId: api.getConfig<number>("local.domainId") ?? 0,
+          domainId: local?.domainId ?? 0,
         },
       };
+    }
 
-    case "webrtc":
+    case "webrtc": {
+      const wrtc = api.pluginConfig?.["webrtc"] as {
+        signalingUrl?: string;
+        apiUrl?: string;
+        robotId?: string;
+        robotKey?: string;
+        iceServers?: Array<{ urls: string | string[]; username?: string; credential?: string }>;
+      } | undefined;
       return {
         mode: "webrtc",
         webrtc: {
-          signalingUrl: api.getConfig<string>("webrtc.signalingUrl") ?? "",
-          apiUrl: api.getConfig<string>("webrtc.apiUrl") ?? "",
-          robotId: api.getConfig<string>("webrtc.robotId") ?? "",
-          robotKey: api.getConfig<string>("webrtc.robotKey") ?? "",
-          iceServers: api.getConfig("webrtc.iceServers") ?? [
+          signalingUrl: wrtc?.signalingUrl ?? "",
+          apiUrl: wrtc?.apiUrl ?? "",
+          robotId: wrtc?.robotId ?? "",
+          robotKey: wrtc?.robotKey ?? "",
+          iceServers: wrtc?.iceServers ?? [
             { urls: "stun:stun.l.google.com:19302" },
           ],
         },
       };
+    }
 
     default:
       throw new Error(`Unknown transport mode: ${mode}`);

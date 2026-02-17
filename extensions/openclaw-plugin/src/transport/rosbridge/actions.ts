@@ -2,7 +2,6 @@ import type { RosbridgeClient } from "./client.js";
 import type {
   ActionResultMessage,
   ActionFeedbackMessage,
-  MessageHandler,
 } from "./types.js";
 
 export interface ActionGoalOptions {
@@ -10,6 +9,7 @@ export interface ActionGoalOptions {
   actionType: string;
   args?: Record<string, unknown>;
   onFeedback?: (feedback: ActionFeedbackMessage) => void;
+  timeoutMs?: number;
 }
 
 /**
@@ -25,15 +25,29 @@ export class ActionClient {
    * @returns The action result
    */
   async sendGoal(options: ActionGoalOptions): Promise<ActionResultMessage> {
-    // TODO: Implement action goal sending
-    // - Generate unique ID
-    // - Register feedback handler if provided
-    // - Send send_action_goal message
-    // - Wait for action_result with matching ID
-    // - Clean up feedback handler
-    // - Return result (or throw on failure)
     const id = this.client.nextId("action");
+    const timeoutMs = options.timeoutMs ?? 120_000; // Actions can be long-running
 
+    // Register feedback handler if provided
+    let removeFeedbackHandler: (() => void) | null = null;
+    if (options.onFeedback) {
+      const feedbackKey = `__action_feedback__${id}`;
+      removeFeedbackHandler = this.client.onMessage(feedbackKey, (msg) => {
+        options.onFeedback!(msg as unknown as ActionFeedbackMessage);
+      });
+    }
+
+    // Create promise that resolves on action_result
+    const resultPromise = new Promise<ActionResultMessage>((resolve, reject) => {
+      this.client.registerPending(
+        id,
+        (result) => resolve(result as ActionResultMessage),
+        reject,
+        timeoutMs,
+      );
+    });
+
+    // Send the goal
     this.client.send({
       op: "send_action_goal",
       id,
@@ -42,14 +56,14 @@ export class ActionClient {
       args: options.args,
     });
 
-    // TODO: Replace with actual result listener
-    return {
-      op: "action_result",
-      id,
-      action: options.action,
-      values: {},
-      result: true,
-    };
+    try {
+      return await resultPromise;
+    } finally {
+      // Clean up feedback handler regardless of outcome
+      if (removeFeedbackHandler) {
+        removeFeedbackHandler();
+      }
+    }
   }
 
   /**
@@ -58,8 +72,6 @@ export class ActionClient {
    * @param action - The action server name
    */
   async cancelGoal(action: string): Promise<void> {
-    // TODO: Implement action cancel
-    // - Send cancel_action_goal message
     this.client.send({
       op: "cancel_action_goal",
       id: this.client.nextId("cancel"),

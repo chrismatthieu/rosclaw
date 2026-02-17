@@ -17,13 +17,13 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@rosclaw/transport": "workspace:*",
-    "@rosclaw/rosbridge-client": "workspace:*",
-    "@rosclaw/transport-local": "workspace:*",
-    "@rosclaw/transport-webrtc": "workspace:*"
+    "@sinclair/typebox": "^0.34.0",
+    "node-datachannel": "^0.12.0",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/node": "^20.17.0",
+    "@types/ws": "^8.5.13",
     "typescript": "^5.7.0"
   },
   "repository": {

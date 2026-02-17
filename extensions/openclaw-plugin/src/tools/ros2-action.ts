@@ -1,49 +1,46 @@
-import type { OpenClawPluginAPI } from "../../index.js";
+import { Type } from "@sinclair/typebox";
+import type { OpenClawPluginApi } from "../plugin-api.js";
 import { getTransport } from "../service.js";
 
 /**
  * Register the ros2_action_goal tool with the AI agent.
- * Phase 2 — sends action goals with progress feedback streaming.
+ * Sends action goals with progress feedback streaming.
  */
-export function registerActionTool(api: OpenClawPluginAPI): void {
-  // TODO: Phase 2 — Implement action goal tool
-  // - Stream feedback back to the chat
-  // - Support cancellation
+export function registerActionTool(api: OpenClawPluginApi): void {
   api.registerTool({
     name: "ros2_action_goal",
+    label: "ROS2 Action Goal",
     description:
       "Send a goal to a ROS2 action server and stream feedback. " +
       "Use this for long-running operations like navigation or arm movements.",
-    parameters: {
-      type: "object",
-      properties: {
-        action: {
-          type: "string",
-          description: "The ROS2 action server name (e.g., '/navigate_to_pose')",
-        },
-        actionType: {
-          type: "string",
-          description: "The ROS2 action type (e.g., 'nav2_msgs/action/NavigateToPose')",
-        },
-        goal: {
-          type: "object",
-          description: "The action goal parameters",
-        },
-      },
-      required: ["action", "actionType", "goal"],
-    },
+    parameters: Type.Object({
+      action: Type.String({ description: "The ROS2 action server name (e.g., '/navigate_to_pose')" }),
+      actionType: Type.String({ description: "The ROS2 action type (e.g., 'nav2_msgs/action/NavigateToPose')" }),
+      goal: Type.Record(Type.String(), Type.Unknown(), {
+        description: "The action goal parameters",
+      }),
+    }),
 
-    async execute(params: { action: string; actionType: string; goal: Record<string, unknown> }) {
+    async execute(_toolCallId, params) {
+      const action = params["action"] as string;
+      const actionType = params["actionType"] as string;
+      const goal = params["goal"] as Record<string, unknown>;
+
       const transport = getTransport();
-      const result = await transport.sendActionGoal({
-        action: params.action,
-        actionType: params.actionType,
-        args: params.goal,
+      const actionResult = await transport.sendActionGoal({
+        action,
+        actionType,
+        args: goal,
       });
+
+      const result = {
+        success: actionResult.result,
+        action,
+        result: actionResult.values,
+      };
       return {
-        success: result.result,
-        action: params.action,
-        result: result.values,
+        content: [{ type: "text", text: JSON.stringify(result) }],
+        details: result,
       };
     },
   });

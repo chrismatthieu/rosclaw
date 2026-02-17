@@ -1,4 +1,4 @@
-import type { OpenClawPluginAPI } from "../../index.js";
+import type { OpenClawPluginApi } from "../plugin-api.js";
 import { getTransport } from "../service.js";
 
 /**
@@ -6,19 +6,15 @@ import { getTransport } from "../service.js";
  * This command bypasses the AI agent and immediately sends a zero-velocity
  * command to stop the robot.
  */
-export function registerEstopCommand(api: OpenClawPluginAPI): void {
-  const namespace = api.getConfig<string>("robot.namespace") ?? "";
+export function registerEstopCommand(api: OpenClawPluginApi): void {
+  const robotCfg = api.pluginConfig?.["robot"] as { namespace?: string } | undefined;
+  const namespace = robotCfg?.namespace ?? "";
 
   api.registerCommand({
     name: "estop",
     description: "Emergency stop — immediately halt the robot (bypasses AI)",
 
-    async execute() {
-      // TODO: Implement comprehensive emergency stop
-      // - Send zero velocity to cmd_vel
-      // - Cancel all active action goals
-      // - Optionally trigger hardware e-stop service if available
-
+    async handler(_ctx) {
       try {
         const transport = getTransport();
         const topic = namespace ? `${namespace}/cmd_vel` : "/cmd_vel";
@@ -33,11 +29,11 @@ export function registerEstopCommand(api: OpenClawPluginAPI): void {
           },
         });
 
-        api.log.warn("ESTOP: Zero velocity command sent");
-        return { message: "Emergency stop activated. Robot halted." };
+        api.logger.warn("ESTOP: Zero velocity command sent");
+        return { text: "Emergency stop activated. Robot halted." };
       } catch (error) {
-        api.log.error("ESTOP FAILED:", String(error));
-        return { message: "Emergency stop failed — transport may be disconnected!" };
+        api.logger.error(`ESTOP FAILED: ${String(error)}`);
+        return { text: "Emergency stop failed — transport may be disconnected!" };
       }
     },
   });

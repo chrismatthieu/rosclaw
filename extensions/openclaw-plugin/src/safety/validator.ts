@@ -1,4 +1,4 @@
-import type { OpenClawPluginAPI } from "../../index.js";
+import type { OpenClawPluginApi } from "../plugin-api.js";
 
 interface SafetyConfig {
   maxLinearVelocity: number;
@@ -21,23 +21,15 @@ const DEFAULT_SAFETY: SafetyConfig = {
  * Register the before_tool_call safety validation hook.
  * Intercepts tool calls and validates them against safety limits.
  */
-export function registerSafetyHook(api: OpenClawPluginAPI): void {
+export function registerSafetyHook(api: OpenClawPluginApi): void {
   const safety: SafetyConfig = {
     ...DEFAULT_SAFETY,
-    ...(api.getConfig<Partial<SafetyConfig>>("safety") ?? {}),
+    ...(api.pluginConfig?.["safety"] as Partial<SafetyConfig> ?? {}),
   };
 
-  api.on("before_tool_call", async (toolCall: unknown) => {
-    // TODO: Implement safety validation
-    // - Check velocity commands against maxLinearVelocity / maxAngularVelocity
-    // - Check navigation goals against workspace limits
-    // - Block dangerous operations (e.g., publishing to certain topics)
-    // - Return { allow: true } or { allow: false, reason: "..." }
-
-    const call = toolCall as { name: string; parameters: Record<string, unknown> };
-
-    if (call.name === "ros2_publish") {
-      const msg = call.parameters["message"] as Record<string, unknown> | undefined;
+  api.on("before_tool_call", async (event, _ctx) => {
+    if (event.toolName === "ros2_publish") {
+      const msg = event.params["message"] as Record<string, unknown> | undefined;
       if (msg) {
         // Check velocity limits for Twist messages
         const linear = msg["linear"] as Record<string, number> | undefined;
@@ -50,23 +42,21 @@ export function registerSafetyHook(api: OpenClawPluginAPI): void {
             (linear["z"] ?? 0) ** 2,
           );
           if (speed > safety.maxLinearVelocity) {
-            api.log.warn(`Blocked: linear velocity ${speed} exceeds limit ${safety.maxLinearVelocity}`);
-            return { allow: false, reason: `Linear velocity ${speed.toFixed(2)} m/s exceeds safety limit of ${safety.maxLinearVelocity} m/s` };
+            api.logger.warn(`Blocked: linear velocity ${speed} exceeds limit ${safety.maxLinearVelocity}`);
+            return { block: true, blockReason: `Linear velocity ${speed.toFixed(2)} m/s exceeds safety limit of ${safety.maxLinearVelocity} m/s` };
           }
         }
 
         if (angular) {
           const rate = Math.abs(angular["z"] ?? 0);
           if (rate > safety.maxAngularVelocity) {
-            api.log.warn(`Blocked: angular velocity ${rate} exceeds limit ${safety.maxAngularVelocity}`);
-            return { allow: false, reason: `Angular velocity ${rate.toFixed(2)} rad/s exceeds safety limit of ${safety.maxAngularVelocity} rad/s` };
+            api.logger.warn(`Blocked: angular velocity ${rate} exceeds limit ${safety.maxAngularVelocity}`);
+            return { block: true, blockReason: `Angular velocity ${rate.toFixed(2)} rad/s exceeds safety limit of ${safety.maxAngularVelocity} rad/s` };
           }
         }
       }
     }
 
     // TODO: Add workspace limit checks for navigation goals
-
-    return { allow: true };
   });
 }

@@ -1,5 +1,5 @@
+import type { RosTransport } from "../transport.js";
 import type {
-  RosTransport,
   ConnectionStatus,
   ConnectionHandler,
   Subscription,
@@ -13,7 +13,7 @@ import type {
   ServiceInfo,
   ActionInfo,
   MessageHandler,
-} from "@rosclaw/transport";
+} from "../types.js";
 
 export interface LocalTransportOptions {
   domainId?: number;

@@ -13,8 +13,6 @@ export class TopicPublisher {
 
   /** Publish a message to the topic. */
   publish(msg: Record<string, unknown>): void {
-    // TODO: Implement topic publish
-    // - Send a publish message via the client
     this.client.send({
       op: "publish",
       topic: this.topic,
@@ -38,9 +36,6 @@ export class TopicSubscriber {
 
   /** Subscribe to the topic and receive messages via the handler. */
   subscribe(handler: MessageHandler): void {
-    // TODO: Implement topic subscribe
-    // - Send a subscribe message via the client
-    // - Register handler for incoming messages on this topic
     this.unsubscribeFromClient = this.client.onMessage(this.topic, handler);
     this.client.send({
       op: "subscribe",
@@ -52,9 +47,6 @@ export class TopicSubscriber {
 
   /** Unsubscribe from the topic. */
   unsubscribe(): void {
-    // TODO: Implement topic unsubscribe
-    // - Send an unsubscribe message via the client
-    // - Remove handler
     if (this.unsubscribeFromClient) {
       this.unsubscribeFromClient();
       this.unsubscribeFromClient = null;
