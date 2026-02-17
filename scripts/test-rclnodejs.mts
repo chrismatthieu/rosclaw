@@ -15,19 +15,25 @@
  */
 
 import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
+import { resolve, dirname } from "node:path";
+
+// Resolve from the plugin directory where rclnodejs is actually installed
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const pluginDir = resolve(__dirname, "../extensions/openclaw-plugin");
+const pluginRequire = createRequire(resolve(pluginDir, "package.json"));
 
 // --- Test 1: ESM import ---
 console.log("=== Test 1: ESM import of rclnodejs ===");
 
-let rclnodejs: typeof import("rclnodejs");
+let rclnodejs: any;
 try {
   rclnodejs = await import("rclnodejs");
   console.log("  ✓ Direct ESM import succeeded");
 } catch {
   console.log("  ⚠ Direct ESM import failed, trying createRequire fallback...");
-  const require = createRequire(import.meta.url);
-  rclnodejs = require("rclnodejs");
-  console.log("  ✓ createRequire fallback succeeded");
+  rclnodejs = pluginRequire("rclnodejs");
+  console.log("  ✓ createRequire fallback succeeded (resolved from plugin node_modules)");
 }
 
 // --- Test 2: init + createNode + spin ---
