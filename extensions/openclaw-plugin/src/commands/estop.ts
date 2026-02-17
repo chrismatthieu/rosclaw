@@ -1,4 +1,5 @@
 import type { OpenClawPluginApi } from "../plugin-api.js";
+import type { RosClawConfig } from "../config.js";
 import { getTransport } from "../service.js";
 
 /**
@@ -6,9 +7,8 @@ import { getTransport } from "../service.js";
  * This command bypasses the AI agent and immediately sends a zero-velocity
  * command to stop the robot.
  */
-export function registerEstopCommand(api: OpenClawPluginApi): void {
-  const robotCfg = api.pluginConfig?.["robot"] as { namespace?: string } | undefined;
-  const namespace = robotCfg?.namespace ?? "";
+export function registerEstopCommand(api: OpenClawPluginApi, config: RosClawConfig): void {
+  const namespace = config.robot.namespace;
 
   api.registerCommand({
     name: "estop",

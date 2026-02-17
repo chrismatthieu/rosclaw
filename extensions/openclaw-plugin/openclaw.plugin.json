@@ -5,6 +5,7 @@
   "description": "Control ROS2 robots through natural language via messaging apps",
   "configSchema": {
     "type": "object",
+    "additionalProperties": false,
     "properties": {
       "transport": {
         "type": "object",
@@ -128,6 +129,32 @@
           }
         }
       }
+    }
+  },
+  "uiHints": {
+    "transport.mode": {
+      "label": "Transport Mode",
+      "description": "How the plugin connects to ROS2: rosbridge (WebSocket), local (DDS), or webrtc (P2P)"
+    },
+    "rosbridge.url": {
+      "label": "Rosbridge URL",
+      "placeholder": "ws://localhost:9090"
+    },
+    "robot.name": {
+      "label": "Robot Name",
+      "placeholder": "Robot"
+    },
+    "safety.maxLinearVelocity": {
+      "label": "Max Linear Velocity (m/s)",
+      "advanced": true
+    },
+    "safety.maxAngularVelocity": {
+      "label": "Max Angular Velocity (rad/s)",
+      "advanced": true
+    },
+    "safety.workspaceLimits": {
+      "label": "Workspace Boundary Limits",
+      "advanced": true
     }
   }
 }

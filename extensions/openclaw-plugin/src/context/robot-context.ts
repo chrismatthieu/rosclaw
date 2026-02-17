@@ -1,4 +1,5 @@
 import type { OpenClawPluginApi } from "../plugin-api.js";
+import type { RosClawConfig } from "../config.js";
 import type { TopicInfo, ServiceInfo, ActionInfo } from "../transport/types.js";
 import { getTransport } from "../service.js";
 
@@ -17,10 +18,9 @@ let cache: DiscoveryCache | null = null;
  * Register the before_agent_start hook to inject robot capabilities
  * into the AI agent's system context.
  */
-export function registerRobotContext(api: OpenClawPluginApi): void {
-  const robotCfg = api.pluginConfig?.["robot"] as { name?: string; namespace?: string } | undefined;
-  const robotName = robotCfg?.name ?? "Robot";
-  const robotNamespace = robotCfg?.namespace ?? "";
+export function registerRobotContext(api: OpenClawPluginApi, config: RosClawConfig): void {
+  const robotName = config.robot.name;
+  const robotNamespace = config.robot.namespace;
 
   // Reactive re-discovery: clear cache on transport reconnect
   try {

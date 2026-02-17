@@ -1,4 +1,5 @@
 import type { OpenClawPluginApi } from "./plugin-api.js";
+import { parseConfig } from "./config.js";
 import { registerService } from "./service.js";
 import { registerTools } from "./tools/index.js";
 import { registerSafetyHook } from "./safety/validator.js";
@@ -15,20 +16,22 @@ export default {
   register(api: OpenClawPluginApi): void {
     api.logger.info("RosClaw plugin loading...");
 
+    const config = parseConfig(api.pluginConfig ?? {});
+
     // Register the rosbridge WebSocket connection as a managed service
-    registerService(api);
+    registerService(api, config);
 
     // Register all ROS2 tools with the AI agent
     registerTools(api);
 
     // Register safety validation hook (before_tool_call)
-    registerSafetyHook(api);
+    registerSafetyHook(api, config);
 
     // Register robot capability injection (before_agent_start)
-    registerRobotContext(api);
+    registerRobotContext(api, config);
 
     // Register direct commands (bypass AI)
-    registerEstopCommand(api);
+    registerEstopCommand(api, config);
 
     api.logger.info("RosClaw plugin loaded successfully");
   },

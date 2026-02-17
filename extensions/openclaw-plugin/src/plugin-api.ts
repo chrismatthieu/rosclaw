@@ -56,8 +56,17 @@ export interface PluginService {
 // --- Commands ---
 
 export interface CommandContext {
+  senderId?: string;
+  channel: string;
+  channelId?: string;
+  isAuthorizedSender: boolean;
+  args?: string;
+  commandBody: string;
   config: Record<string, unknown>;
-  logger: PluginLogger;
+  from?: string;
+  to?: string;
+  accountId?: string;
+  messageThreadId?: number;
 }
 
 export interface PluginCommand {
@@ -80,9 +89,17 @@ export interface BeforeAgentStartResult {
   prependContext?: string;
 }
 
+export interface BeforeAgentStartContext {
+  agentId?: string;
+  sessionKey?: string;
+  sessionId?: string;
+  workspaceDir?: string;
+  messageProvider?: string;
+}
+
 export type BeforeAgentStartHandler = (
   event: BeforeAgentStartEvent,
-  ctx: HookContext,
+  ctx: BeforeAgentStartContext,
 ) => Promise<BeforeAgentStartResult | void> | BeforeAgentStartResult | void;
 
 export interface BeforeToolCallEvent {
@@ -95,15 +112,16 @@ export interface BeforeToolCallResult {
   blockReason?: string;
 }
 
+export interface BeforeToolCallContext {
+  agentId?: string;
+  sessionKey?: string;
+  toolName: string;
+}
+
 export type BeforeToolCallHandler = (
   event: BeforeToolCallEvent,
-  ctx: HookContext,
+  ctx: BeforeToolCallContext,
 ) => Promise<BeforeToolCallResult | void> | BeforeToolCallResult | void;
-
-export interface HookContext {
-  config: Record<string, unknown>;
-  logger: PluginLogger;
-}
 
 // --- Plugin API ---
 
@@ -111,7 +129,7 @@ export interface OpenClawPluginApi {
   pluginConfig?: Record<string, unknown>;
   logger: PluginLogger;
 
-  registerTool(tool: AgentTool, opts?: { name?: string }): void;
+  registerTool(tool: AgentTool, opts?: { name?: string; names?: string[]; optional?: boolean }): void;
   registerService(service: PluginService): void;
   registerCommand(command: PluginCommand): void;
 

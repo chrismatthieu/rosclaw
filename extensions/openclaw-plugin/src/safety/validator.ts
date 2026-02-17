@@ -1,31 +1,12 @@
 import type { OpenClawPluginApi } from "../plugin-api.js";
-
-interface SafetyConfig {
-  maxLinearVelocity: number;
-  maxAngularVelocity: number;
-  workspaceLimits: {
-    xMin: number;
-    xMax: number;
-    yMin: number;
-    yMax: number;
-  };
-}
-
-const DEFAULT_SAFETY: SafetyConfig = {
-  maxLinearVelocity: 1.0,
-  maxAngularVelocity: 1.5,
-  workspaceLimits: { xMin: -10, xMax: 10, yMin: -10, yMax: 10 },
-};
+import type { RosClawConfig } from "../config.js";
 
 /**
  * Register the before_tool_call safety validation hook.
  * Intercepts tool calls and validates them against safety limits.
  */
-export function registerSafetyHook(api: OpenClawPluginApi): void {
-  const safety: SafetyConfig = {
-    ...DEFAULT_SAFETY,
-    ...(api.pluginConfig?.["safety"] as Partial<SafetyConfig> ?? {}),
-  };
+export function registerSafetyHook(api: OpenClawPluginApi, config: RosClawConfig): void {
+  const safety = config.safety;
 
   api.on("before_tool_call", async (event, _ctx) => {
     if (event.toolName === "ros2_publish") {
