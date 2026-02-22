@@ -1,6 +1,6 @@
 # @rosclaw/openclaw-canvas
 
-Real-time robot dashboard via OpenClaw's Canvas/A2UI system.
+Real-time robot dashboard rendered inside OpenClaw's native apps via the Canvas/A2UI system.
 
 **Status: Phase 3 — not yet implemented.**
 
@@ -13,58 +13,142 @@ The primary RosClaw interface is chat (WhatsApp, Telegram, Discord, Slack). Chat
 - **Teleoperation** — joystick-style control requiring low-latency, high-frequency updates (>10Hz)
 - **Map visualization** — SLAM maps with live robot position overlay
 
-The canvas extension supplements the chat interface with a web-based dashboard rendered through OpenClaw's Canvas/A2UI system — a web frontend that connects to the OpenClaw gateway and lets plugins define rich interactive UI.
+This extension provides a dashboard for **operators using the OpenClaw native app** (macOS, iOS, or Android). Users chatting via WhatsApp/Telegram never see it — they continue getting text replies and inline media from the AI agent.
 
-## How It Would Work
+## Who Sees What
 
-OpenClaw's gateway is a WebSocket server. Messaging apps connect on one side, but it also exposes a typed RPC protocol. Plugins can register custom RPC methods via `api.registerGatewayMethod()` that any client (including a web dashboard) can call.
+| User | Interface | What They Get |
+|------|-----------|---------------|
+| Field user on WhatsApp/Telegram | Messaging app chat | AI text replies, inline camera snapshots, status summaries |
+| Operator on OpenClaw native app | Chat + Canvas panel | Everything above, plus live dashboard with telemetry, camera stream, controls |
 
-The canvas extension would consume robot data through the **main RosClaw plugin**, which already owns the rosbridge connection and manages the transport lifecycle. Rather than opening a second connection to rosbridge, the canvas calls gateway methods that the main plugin exposes.
+## How Canvas Works in OpenClaw
 
-```
-Browser (dashboard)
-    │
-    └── WebSocket to OpenClaw Gateway
-            │
-            ├── Canvas/A2UI renderer (UI panels defined by this extension)
-            │
-            └── Gateway methods (registered by @rosclaw/openclaw-plugin)
-                    │
-                    └── rosbridge transport (single managed connection)
-                            │
-                            └── ROS2 DDS → Robots
-```
+Canvas is a **WebView panel inside the OpenClaw native apps** (not a standalone web page or browser tab):
 
-### Why not connect to rosbridge directly?
+| Platform | App Location | Canvas Rendering |
+|----------|-------------|------------------|
+| macOS | `apps/macos/` | WKWebView with `openclaw-canvas://` URL scheme |
+| iOS | `apps/ios/` | SwiftUI + WebView via `RootCanvas.swift` |
+| Android | `apps/android/` | WebView via `CanvasController.kt` |
 
-The original design had a standalone `@rosclaw/rosbridge-client` package that both the main plugin and canvas would import independently. That package was collapsed into the main plugin's internal `src/transport/` during refactoring — the transport code is no longer shared.
+The AI agent controls the Canvas through a built-in `canvas` tool with these actions:
 
-Two options exist for Phase 3:
-
-| Approach | Pros | Cons |
-|----------|------|------|
-| **Gateway-only** — canvas calls gateway methods exposed by the main plugin | Single rosbridge connection; auth/safety handled in one place; simpler | All data funneled through the gateway; potential bottleneck for high-frequency streams |
-| **Re-extract shared transport** — pull rosbridge client back into `packages/rosbridge-client/` | Direct browser-to-rosbridge for low-latency streams (camera, telemetry) | Two connections to manage; duplicated auth; canvas bypasses safety hooks |
-
-The gateway-only approach is the likely starting point. If latency becomes an issue for camera feeds or teleoperation, the transport can be re-extracted later.
-
-### Example gateway methods the main plugin would register
-
-| Method | Description |
+| Action | Description |
 |--------|-------------|
-| `rosclaw.listTopics` | Return discovered topics, services, actions |
-| `rosclaw.subscribe` | Open a streaming subscription to a topic |
-| `rosclaw.getCamera` | Grab a camera frame and return it |
-| `rosclaw.getRobotState` | Current robot pose, battery, diagnostics |
-| `rosclaw.sendVelocity` | Teleoperation velocity commands (pass through safety hooks) |
+| `canvas.present` | Show the canvas panel |
+| `canvas.hide` | Hide the canvas panel |
+| `canvas.navigate` | Navigate to a URL or local path |
+| `canvas.eval` | Execute JavaScript in the canvas |
+| `canvas.snapshot` | Capture a screenshot of the canvas |
+| `canvas.a2ui.push` | Push A2UI component descriptions |
+| `canvas.a2ui.pushJSONL` | Push A2UI JSONL streaming format |
+| `canvas.a2ui.reset` | Reset A2UI renderer state |
+
+## A2UI: How the Dashboard Renders
+
+[A2UI](https://a2ui.org) ("Agent-to-UI") is an open standard (Google, Apache 2.0) for agent-driven UIs. It's a declarative JSONL protocol — agents describe UI as JSON, clients render with native components. OpenClaw bundles the A2UI v0.8 Lit renderer at `vendor/a2ui/`.
+
+### Rendering flow
+
+1. Plugin pushes A2UI JSONL via the `canvas` agent tool
+2. Gateway forwards to the connected native app
+3. Canvas WebView loads `/__openclaw__/a2ui/index.html` (bundles the Lit renderer)
+4. Lit renderer maps A2UI components to web components
+5. User clicks a button/slider → JavaScript bridge posts `userAction` back to the agent
+6. Agent processes the action and pushes updated A2UI
+
+### Key A2UI message types
+
+**`surfaceUpdate`** — define/update the component tree (flat adjacency list):
+```json
+{
+  "surfaceUpdate": {
+    "surfaceId": "dashboard",
+    "components": [
+      { "id": "root", "component": { "Column": { "children": { "explicitList": ["battery_card", "camera_card"] } } } },
+      { "id": "battery_card", "component": { "Card": { "child": "battery_text" } } },
+      { "id": "battery_text", "component": { "Text": { "text": { "path": "/robot/battery" } } } }
+    ]
+  }
+}
+```
+
+**`dataModelUpdate`** — push reactive data (bound components auto-re-render):
+```json
+{
+  "dataModelUpdate": {
+    "surfaceId": "dashboard",
+    "path": "robot",
+    "contents": [
+      { "key": "battery", "valueString": "87%" },
+      { "key": "status", "valueString": "navigating" }
+    ]
+  }
+}
+```
+
+**`userAction`** — received when the operator interacts with the dashboard:
+```json
+{
+  "userAction": {
+    "name": "estop",
+    "surfaceId": "dashboard",
+    "sourceComponentId": "estop_btn"
+  }
+}
+```
+
+### Available A2UI components (v0.8 standard catalog)
+
+| Category | Components |
+|----------|-----------|
+| Layout | `Row`, `Column`, `List` |
+| Display | `Text`, `Image`, `Icon`, `Video`, `AudioPlayer`, `Divider` |
+| Interactive | `Button`, `TextField`, `CheckBox`, `DateTimeInput`, `MultipleChoice`, `Slider` |
+| Container | `Card`, `Tabs`, `Modal` |
+
+## Data Flow Architecture
+
+The main RosClaw plugin owns the rosbridge connection. This extension doesn't connect to ROS2 directly — it pushes A2UI through the agent, and the agent uses the main plugin's tools to fetch robot data.
+
+```
+OpenClaw Native App
+    │
+    ├── Chat panel (messaging interface)
+    │
+    └── Canvas panel (A2UI WebView)
+            │
+            ↕ A2UI JSONL (surfaceUpdate, dataModelUpdate, userAction)
+            │
+        OpenClaw Gateway
+            │
+            ├── AI Agent ← canvas tool (push A2UI)
+            │       │
+            │       └── RosClaw plugin tools (ros2_subscribe, ros2_camera_snapshot, ...)
+            │               │
+            │               └── rosbridge transport → ROS2 DDS → Robots
+            │
+            └── Gateway methods (rosclaw.subscribe, rosclaw.getRobotState, ...)
+                    │
+                    └── rosbridge transport → ROS2 DDS → Robots
+```
+
+Two data paths are possible:
+
+1. **Agent-mediated** — the agent calls ros2 tools, formats results as A2UI, and pushes to canvas. Simple but adds latency (LLM round-trip).
+2. **Gateway methods** — the main plugin registers `api.registerGatewayMethod()` endpoints. The canvas extension (or its frontend JS) calls these directly for real-time data, bypassing the LLM. Required for high-frequency updates.
+
+Path 2 requires the main plugin to register gateway methods ([Issue #10](../docs/openclaw-plugin-review.md) — currently deferred).
 
 ## Planned Features
 
-- Live camera stream viewer
-- Sensor telemetry panels (battery, IMU, LIDAR)
-- 2D map with robot position (Nav2 integration)
-- Virtual joystick for direct teleoperation
-- Action progress visualization (navigation goals, arm trajectories)
+- Battery and system status cards (`Text` + `dataModelUpdate` for reactive updates)
+- Camera feed panel (`Image` component, periodically updated via `dataModelUpdate`)
+- Velocity slider/joystick for teleoperation (`Slider` + `userAction` callbacks)
+- Emergency stop button (`Button` + `userAction` → triggers estop)
+- Topic list and service browser (`List` + `Card` components)
+- Nav2 goal progress visualization (`Text` + progress updates)
 
 ## Current State
 
@@ -78,4 +162,16 @@ export function register(api) {
 
 ## Prerequisites
 
-Before implementing this extension, the main `@rosclaw/openclaw-plugin` needs to register gateway methods (see [Issue #10](../docs/openclaw-plugin-review.md) — currently deferred).
+Before implementing this extension:
+
+1. **Main plugin gateway methods** — `@rosclaw/openclaw-plugin` needs to register `api.registerGatewayMethod()` endpoints for real-time data access (Issue #10, currently deferred)
+2. **A2UI v0.8 familiarity** — the dashboard is built entirely as A2UI JSONL, not custom HTML/JS
+3. **Native app testing** — Canvas only renders in the OpenClaw macOS, iOS, or Android app
+
+## References
+
+- [A2UI Specification v0.8](https://a2ui.org/specification/v0.8-a2ui/)
+- [A2UI Message Reference](https://a2ui.org/reference/messages/)
+- [A2UI Component Catalog](https://a2ui.org/concepts/components/)
+- [OpenClaw Canvas Docs](https://docs.openclaw.ai/platforms/mac/canvas)
+- [OpenClaw Canvas Skill](https://github.com/openclaw/openclaw/blob/main/skills/canvas/SKILL.md)
