@@ -177,6 +177,7 @@ You are connected to a ROS2 robot named "${name}". You can control it using the 
 - \`${prefix}scan\` (sensor_msgs/msg/LaserScan) — LIDAR scan
 - \`${prefix}camera/image_raw/compressed\` (sensor_msgs/msg/CompressedImage) — Camera feed
 - \`${prefix}battery_state\` (sensor_msgs/msg/BatteryState) — Battery status
+- RealSense (if present): \`/camera/camera/color/image_raw\` (Image), \`/camera/camera/color/image_raw/compressed\` (CompressedImage), \`/camera/camera/depth/image_rect_raw\` (depth). Use \`ros2_camera_snapshot\` with message_type \`Image\` for raw or \`CompressedImage\` for compressed.
 
 ### Safety Limits
 - Maximum linear velocity: 1.0 m/s

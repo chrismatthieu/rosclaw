@@ -78,6 +78,33 @@ docker compose up
 
 This starts ROS2 + rosbridge + Gazebo. Then configure your OpenClaw instance to use the RosClaw plugin with `ws://localhost:9090`.
 
+### Run without ROS installed (Docker + OpenClaw on your machine)
+
+If you don’t have ROS on your host (e.g. macOS with only OpenClaw and Docker):
+
+1. **Start the simulation in Docker** (from the repo root):
+   ```bash
+   cd docker
+   docker compose up ros2
+   ```
+   This runs ROS2, rosbridge, and Gazebo in a container and exposes rosbridge at `localhost:9090`.
+
+2. **Build the RosClaw plugin** (in the repo root):
+   ```bash
+   pnpm install
+   pnpm build
+   ```
+
+3. **Install the plugin into OpenClaw** from the local path:
+   ```bash
+   openclaw plugins install -l ./extensions/openclaw-plugin
+   ```
+   Use the path to your cloned `rosclaw` repo (e.g. `/Users/you/Projects/rosclaw/extensions/openclaw-plugin` if needed).
+
+4. **Configure the plugin** in OpenClaw with rosbridge URL **`ws://localhost:9090`** (this is the default).
+
+5. Start OpenClaw and use your configured messaging channel; the plugin will talk to the simulation in Docker over WebSocket.
+
 ### Try It
 
 Send a message to your robot:
