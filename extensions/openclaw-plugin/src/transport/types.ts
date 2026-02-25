@@ -23,6 +23,12 @@ export interface PublishOptions {
   msg: Record<string, unknown>;
 }
 
+/** Optional: advertise a topic (type) before publishing. Used by rosbridge so the server creates the publisher with the right type. */
+export interface AdvertiseOptions {
+  topic: string;
+  type: string;
+}
+
 // --- Subscribe ---
 
 export interface SubscribeOptions {

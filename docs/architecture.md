@@ -38,7 +38,7 @@ across all modes — only the transport between them changes.
 │  │  │                                                                      │   │  │
 │  │  │  ros2_publish    ros2_subscribe_once    ros2_service_call            │   │  │
 │  │  │  ros2_action_goal   ros2_param_get/set  ros2_list_topics            │   │  │
-│  │  │  ros2_camera_snapshot                                                │   │  │
+│  │  │  ros2_camera_snapshot   follow_robot (Follow Me mission)            │   │  │
 │  │  └──────────────────────────────┬──────────────────────────────────────┘   │  │
 │  │                                 │                                          │  │
 │  │  ┌──────────────┐  ┌───────────▼──────────┐  ┌─────────────────────┐      │  │
@@ -48,6 +48,7 @@ across all modes — only the transport between them changes.
 │  │  │ take-photo   │  │  · velocity limits   │  │  · capabilities    │      │  │
 │  │  │ check-status │  │  · workspace bounds  │  │  · topics/services │      │  │
 │  │  │ pick-object  │  │  · blocked ops       │  │  · safety config   │      │  │
+│  │  │ follow-me    │  │                      │  │                     │      │  │
 │  │  └──────────────┘  └──────────┬───────────┘  └─────────────────────┘      │  │
 │  │                               │                                            │  │
 │  │  ┌────────────────────────────┤   ┌──────────────────────────────────┐     │  │

@@ -129,6 +129,21 @@
           }
         }
       }
+    },
+    "followMe": {
+      "type": "object",
+      "description": "Native Follow Me: camera + Qwen VLM (Ollama) + cmd_vel. No external apps.",
+      "properties": {
+        "ollamaUrl": { "type": "string", "description": "Ollama API URL", "default": "http://localhost:11434" },
+        "vlmModel": { "type": "string", "description": "Vision model (e.g. qwen2-vl:7b)", "default": "qwen2-vl:7b" },
+        "cameraTopic": { "type": "string", "description": "ROS2 camera topic", "default": "/camera/image_raw/compressed" },
+        "cameraMessageType": { "type": "string", "enum": ["CompressedImage", "Image"], "default": "CompressedImage" },
+        "cmdVelTopic": { "type": "string", "description": "Override cmd_vel topic (e.g. /robot3946.../cmd_vel). Empty = use robot.namespace + /cmd_vel", "default": "" },
+        "targetDistance": { "type": "number", "description": "Follow distance (m)", "default": 0.5 },
+        "rateHz": { "type": "number", "description": "Loop rate (1–15)", "default": 5 },
+        "minLinearVelocity": { "type": "number", "description": "Min linear speed (m/s) so base moves (e.g. 0.3)", "default": 0.3 },
+        "depthTopic": { "type": "string", "description": "Optional depth topic (RealSense) for real distance vs targetDistance. Empty = VLM distance_hint only.", "default": "" }
+      }
     }
   },
   "uiHints": {
@@ -160,6 +175,41 @@
     "safety.workspaceLimits": {
       "label": "Workspace Boundary Limits",
       "advanced": true
+    },
+    "followMe.ollamaUrl": {
+      "label": "Ollama URL",
+      "description": "For Follow Me VLM (Qwen). e.g. http://localhost:11434",
+      "placeholder": "http://localhost:11434"
+    },
+    "followMe.vlmModel": {
+      "label": "VLM Model",
+      "description": "Vision model for person detection (e.g. qwen2-vl:7b)",
+      "placeholder": "qwen2-vl:7b"
+    },
+    "followMe.cameraTopic": {
+      "label": "Camera Topic",
+      "description": "ROS2 camera topic for Follow Me",
+      "placeholder": "/camera/image_raw/compressed"
+    },
+    "followMe.cmdVelTopic": {
+      "label": "Follow Me cmd_vel topic",
+      "description": "Exact topic for velocity commands (e.g. /robot3946b404c33e4aa39a8d16deb1c5c593/cmd_vel). Overrides robot.namespace if set.",
+      "placeholder": "/robot3946b404c33e4aa39a8d16deb1c5c593/cmd_vel"
+    },
+    "followMe.targetDistance": {
+      "label": "Follow Distance (m)",
+      "description": "Target distance to keep behind person (default 0.5). Use depth topic for real distance.",
+      "advanced": true
+    },
+    "followMe.minLinearVelocity": {
+      "label": "Min Linear Velocity (m/s)",
+      "description": "Minimum forward/back speed so the base moves (many need ~0.3)",
+      "advanced": true
+    },
+    "followMe.depthTopic": {
+      "label": "Follow Me depth topic",
+      "description": "RealSense depth topic for real distance (e.g. /camera/camera/depth/image_rect_raw). Empty = use VLM distance_hint only.",
+      "placeholder": "/camera/camera/depth/image_rect_raw"
     }
   }
 }

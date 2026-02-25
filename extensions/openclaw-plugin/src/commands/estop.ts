@@ -17,7 +17,7 @@ export function registerEstopCommand(api: OpenClawPluginApi, config: RosClawConf
     async handler(_ctx) {
       try {
         const transport = getTransport();
-        const topic = namespace ? `${namespace}/cmd_vel` : "/cmd_vel";
+        const topic = namespace?.trim() ? `/${namespace.trim()}/cmd_vel` : "/cmd_vel";
 
         // Send zero velocity
         transport.publish({

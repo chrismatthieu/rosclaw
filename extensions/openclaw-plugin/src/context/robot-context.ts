@@ -179,7 +179,10 @@ function buildDynamicContext(
     context += "\n";
   }
 
-  context += `### Safety Limits
+  context += `### Missions
+- **Follow Me** (native): The user can say "follow me", "start following", "stop following". Use the **\`follow_robot\`** tool (action: \`start\` to begin, \`stop\` to halt, \`status\` to check). The mission uses the robot's camera (ROS2) + Qwen VLM (Ollama) to find a person and issue Twist commands to follow ~1 m behind. No external apps—fully inside OpenClaw + RosClaw. Ensure Ollama is running with a vision model (e.g. qwen2-vl:7b) and the plugin's followMe.cameraTopic matches the robot's camera.
+
+### Safety Limits
 - Maximum linear velocity: 1.0 m/s
 - Maximum angular velocity: 1.5 rad/s
 - All velocity commands are validated before execution
@@ -209,7 +212,10 @@ ${USER_INTERFACE_BLURB}
 - \`${prefix}scan\` (sensor_msgs/msg/LaserScan) — LIDAR scan
 - \`${prefix}camera/image_raw/compressed\` (sensor_msgs/msg/CompressedImage) — Camera feed
 - \`${prefix}battery_state\` (sensor_msgs/msg/BatteryState) — Battery status
-- RealSense (if present): \`/camera/camera/color/image_raw\` (Image), \`/camera/camera/color/image_raw/compressed\` (CompressedImage), \`/camera/camera/depth/image_rect_raw\` (depth). Use \`ros2_camera_snapshot\` with message_type \`Image\` for raw or \`CompressedImage\` for compressed.
+- RealSense (if present): \`/camera/camera/color/image_raw\` (Image), \`/camera/camera/color/image_raw/compressed\` (CompressedImage), \`/camera/camera/depth/image_rect_raw\` (depth). Use \`ros2_camera_snapshot\` for RGB; use \`ros2_depth_distance\` to get distance in meters (center of depth image). For Follow Me with real distance, set \`followMe.depthTopic\` to the depth topic.
+
+### Missions
+- **Follow Me** (native): Use **\`follow_robot\`** with action \`start\` / \`stop\` / \`status\` when the user says "follow me", "start following", or "stop following". Camera + Qwen VLM (Ollama) + cmd_vel; no external apps.
 
 ### Safety Limits
 - Maximum linear velocity: 1.0 m/s
@@ -220,6 +226,7 @@ ${USER_INTERFACE_BLURB}
 - Use \`ros2_list_topics\` to discover all available topics
 - Use \`ros2_subscribe_once\` to read the current value of any topic
 - Use \`ros2_camera_snapshot\` to see what the robot sees
+- Use \`ollama_status\` to check if Ollama is reachable and the Follow Me vision model is available when Follow Me has no detections or the user asks if Qwen is running
 - The user can say /estop at any time to immediately stop the robot
 `.trim();
 }

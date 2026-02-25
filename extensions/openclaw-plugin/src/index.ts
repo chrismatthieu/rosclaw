@@ -22,8 +22,8 @@ export default {
     // Register the rosbridge WebSocket connection as a managed service
     registerService(api, config);
 
-    // Register all ROS2 tools with the AI agent
-    registerTools(api);
+    // Register all ROS2 tools and mission tools with the AI agent
+    registerTools(api, config);
 
     // Register safety validation hook (before_tool_call)
     registerSafetyHook(api, config);

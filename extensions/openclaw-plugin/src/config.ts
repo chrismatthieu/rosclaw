@@ -60,6 +60,24 @@ export const RosClawConfigSchema = z.object({
         .default({}),
     })
     .default({}),
+
+  /** Native Follow Me: VLM (Ollama Qwen) + camera + cmd_vel. No external apps. */
+  followMe: z
+    .object({
+      ollamaUrl: z.string().default("http://localhost:11434"),
+      vlmModel: z.string().default("qwen2-vl:7b"),
+      cameraTopic: z.string().default("/camera/image_raw/compressed"),
+      cameraMessageType: z.enum(["CompressedImage", "Image"]).default("CompressedImage"),
+      /** Override cmd_vel topic (e.g. /robot3946.../cmd_vel). If set, used instead of robot.namespace + /cmd_vel. */
+      cmdVelTopic: z.string().default(""),
+      targetDistance: z.number().default(0.5),
+      rateHz: z.number().min(1).max(15).default(5),
+      /** Minimum linear speed (m/s) when moving forward/back so the base actually moves. Many bases need ~0.3. */
+      minLinearVelocity: z.number().min(0).max(1).default(0.3),
+      /** Optional depth image topic (e.g. RealSense /camera/camera/depth/image_rect_raw). If set, Follow Me uses real distance vs targetDistance instead of VLM distance_hint only. */
+      depthTopic: z.string().default(""),
+    })
+    .default({}),
 });
 
 export type RosClawConfig = z.infer<typeof RosClawConfigSchema>;
