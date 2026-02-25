@@ -97,9 +97,20 @@ export function registerCameraTool(api: OpenClawPluginApi): void {
         }, timeout);
       });
 
+      // Return image as proper image content to avoid sending huge base64 in text (rate limits / token burn).
+      const base64 = (result.data as string) ?? "";
+      const format = (result.format as string) ?? "jpeg";
+      const mimeType = format === "png" ? "image/png" : "image/jpeg";
+      const summary = `Captured one frame from ${topic}${result.width != null ? ` (${result.width}×${result.height})` : ""}.`;
+
+      const content: Array<{ type: "text"; text: string } | { type: "image"; data: string; mimeType: string }> = [
+        { type: "text", text: summary },
+      ];
+      if (base64) content.push({ type: "image", data: base64, mimeType });
+
       return {
-        content: [{ type: "text", text: JSON.stringify(result) }],
-        details: result,
+        content,
+        details: { success: result.success, topic, width: result.width, height: result.height },
       };
     },
   });

@@ -41,8 +41,22 @@ export function registerSubscribeTool(api: OpenClawPluginApi): void {
         }, timeout);
       });
 
+      // Avoid sending huge payloads (e.g. image/point cloud) as text — burns tokens and triggers rate limits
+      const MAX_TEXT_CHARS = 8000;
+      let text = JSON.stringify(result);
+      if (text.length > MAX_TEXT_CHARS) {
+        text =
+          JSON.stringify({
+            success: true,
+            topic,
+            message: "[truncated: message too large for model context]",
+            originalSize: text.length,
+          }) +
+          "\n(Use ros2_camera_snapshot for image topics.)";
+      }
+
       return {
-        content: [{ type: "text", text: JSON.stringify(result) }],
+        content: [{ type: "text", text }],
         details: result,
       };
     },

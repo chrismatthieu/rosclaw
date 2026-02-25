@@ -138,26 +138,43 @@ function buildDynamicContext(
   context += `You are connected to a ROS2 robot named "${name}". You can control it using the ros2_* tools.\n\n`;
   context += `${USER_INTERFACE_BLURB}\n\n`;
 
+  // Cap injected lists to avoid huge context (rate limits / token burn)
+  const MAX_TOPICS = 25;
+  const MAX_SERVICES = 15;
+  const MAX_ACTIONS = 15;
+
   if (topics.length > 0) {
     context += "### Available Topics\n";
-    for (const t of topics) {
+    const showTopics = topics.slice(0, MAX_TOPICS);
+    for (const t of showTopics) {
       context += `- \`${t.name}\` (${t.type})\n`;
+    }
+    if (topics.length > MAX_TOPICS) {
+      context += `- … and ${topics.length - MAX_TOPICS} more (use \`ros2_list_topics\` if needed)\n`;
     }
     context += "\n";
   }
 
   if (services.length > 0) {
     context += "### Available Services\n";
-    for (const s of services) {
+    const showServices = services.slice(0, MAX_SERVICES);
+    for (const s of showServices) {
       context += `- \`${s.name}\` (${s.type})\n`;
+    }
+    if (services.length > MAX_SERVICES) {
+      context += `- … and ${services.length - MAX_SERVICES} more\n`;
     }
     context += "\n";
   }
 
   if (actions.length > 0) {
     context += "### Available Actions\n";
-    for (const a of actions) {
+    const showActions = actions.slice(0, MAX_ACTIONS);
+    for (const a of showActions) {
       context += `- \`${a.name}\` (${a.type})\n`;
+    }
+    if (actions.length > MAX_ACTIONS) {
+      context += `- … and ${actions.length - MAX_ACTIONS} more\n`;
     }
     context += "\n";
   }
