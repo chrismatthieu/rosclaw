@@ -105,6 +105,12 @@ If you don’t have ROS on your host (e.g. macOS with only OpenClaw and Docker):
 
 5. Start OpenClaw and use your configured messaging channel; the plugin will talk to the simulation in Docker over WebSocket.
 
+### Run on your own robot (Ubuntu + ROS2)
+
+**New robot?** Use the onboarding wizard: `./scripts/onboard_robot.sh` (run from the repo root). It guides you through robot-side and/or gateway-side setup.
+
+For manual steps, see **[Robot Setup Guide](docs/robot-setup.md)**. Quick path: `./scripts/setup_robot.sh` on the robot, `./scripts/setup_gateway_plugin.sh` where OpenClaw runs, then `./scripts/run_demo_native.sh` to start the bridges.
+
 ### Try It
 
 Send a message to your robot:

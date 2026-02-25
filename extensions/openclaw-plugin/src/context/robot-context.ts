@@ -116,6 +116,18 @@ function buildRobotContext(
   return buildFallbackContext(name, namespace);
 }
 
+const USER_INTERFACE_BLURB = `
+### User-facing interface (tell users this when they ask)
+- **There is no separate robot GUI, dashboard, or URL.** The interface is this chat.
+- The user controls the robot by typing here (e.g. "move forward 1 meter", "what do you see?", "check the battery"). You execute commands with the ros2_* tools and reply in chat.
+- For telemetry: use \`ros2_subscribe_once\` or \`ros2_camera_snapshot\` and describe or show the result in your reply. There is no separate feed URL—you are the feed. If they want a "controller app," this chat is it.
+
+### OpenClaw "nodes" — do not confuse with RosClaw
+- RosClaw is an **OpenClaw plugin** that runs inside this gateway. It connects to the robot via **rosbridge** (WebSocket to the robot's rosbridge_server). There is **no separate "RosClaw agent" or "node" to pair**.
+- **Never tell users** to run \`openclaw node pair\`, \`openclaw nodes status\`, QR codes, or auth tokens for robot control. Those apply to OpenClaw's node/device pairing feature, not to RosClaw.
+- If the user says "nodes status shows zero" or "how do I pair the robot": explain that the robot is already connected through the RosClaw plugin's rosbridge connection (configured in the plugin as e.g. ws://localhost:9090). No pairing step is required. If the plugin is loaded and rosbridge is running on the robot, the robot is connected—\`openclaw nodes status\` is irrelevant for RosClaw.
+`.trim();
+
 function buildDynamicContext(
   name: string,
   topics: TopicInfo[],
@@ -124,6 +136,7 @@ function buildDynamicContext(
 ): string {
   let context = `## Robot: ${name}\n\n`;
   context += `You are connected to a ROS2 robot named "${name}". You can control it using the ros2_* tools.\n\n`;
+  context += `${USER_INTERFACE_BLURB}\n\n`;
 
   if (topics.length > 0) {
     context += "### Available Topics\n";
@@ -170,6 +183,8 @@ function buildFallbackContext(name: string, namespace: string): string {
 ## Robot: ${name}
 
 You are connected to a ROS2 robot named "${name}". You can control it using the ros2_* tools.
+
+${USER_INTERFACE_BLURB}
 
 ### Available Topics
 - \`${prefix}cmd_vel\` (geometry_msgs/msg/Twist) — Velocity commands

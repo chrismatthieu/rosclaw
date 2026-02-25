@@ -144,6 +144,11 @@
       "label": "Robot Name",
       "placeholder": "Robot"
     },
+    "robot.namespace": {
+      "label": "ROS2 Robot Namespace",
+      "description": "Namespace for this robot's topics (e.g. robot3946b404c33e4aa39a8d16deb1c5c593). cmd_vel will be <namespace>/cmd_vel.",
+      "placeholder": ""
+    },
     "safety.maxLinearVelocity": {
       "label": "Max Linear Velocity (m/s)",
       "advanced": true
