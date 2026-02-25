@@ -220,6 +220,16 @@ Once everything is running:
 | “Package not found” (rosclaw_discovery) | Run `source scripts/activate_workspace.sh` and ensure `ros2_ws` is built. |
 | Different ROS distro | Use `--ros-distro humble` or `jazzy` in `setup_workspace.sh` and when sourcing. |
 
+### "Rate limited" in webchat (OpenAI)
+
+The message comes from **OpenAI's API limits**, not from RosClaw. The gateway sends your chat to OpenAI; when OpenAI returns 429 (rate limit), OpenClaw shows "rate limited".
+
+1. **Confirm it's OpenAI** — Check gateway logs:  
+   `journalctl --user -u openclaw-gateway.service -n 100 --no-pager | grep -i "429\|rate\|limit\|error"`
+2. **Check your OpenAI account** — [Usage](https://platform.openai.com/usage), [API keys](https://platform.openai.com/api-keys). Free/low tiers have strict RPM/TPM and can stay limited for a while.
+3. **What helps** — Wait (RPM/TPM reset in minutes; daily limits at UTC midnight). Or in OpenClaw switch to a model with higher limits if available.
+4. **RosClaw** — We only trim context/tool output to use fewer tokens; we can't remove OpenAI's limits.
+
 ### 404 errors when installing rosbridge_suite
 
 If `sudo apt install ros-jazzy-rosbridge-suite` fails with **404 Not Found** (stale ROS or Ubuntu mirror):
