@@ -65,9 +65,22 @@ If the tap or package names differ, see [Eclipse Zenoh installation](https://zen
 
 ## Using zenoh-bridge-ros2dds
 
-- On the **robot**: run ROS 2 (DDS) and **zenoh-bridge-ros2dds**, and point the bridge at the same Zenoh router (e.g. `tcp/<macbook-ip>:7447` if the router runs on your MacBook).
-- On the **MacBook**: run **zenohd** with the config above (so it listens on tcp/7447 and ws/10000). RosClaw connects to `ws://localhost:10000`; your Rust `z_sub -e tcp/127.0.0.1:7447` connects to the same router.
-- Set RosClaw **zenoh.keyFormat** to **`ros2dds`** (default) so topic keys match the bridge (`cmd_vel`, `camera/camera/...`, etc.).
+- On the **Mac**: run **zenohd only** (the router), with `zenohd-rosclaw.json5`. Do not run the bridge on the Mac.
+- On the **robot**: run **zenoh-bridge-ros2dds** (the **bridge** executable), **not zenohd**. The bridge connects to the Mac’s zenohd and forwards Zenoh ↔ ROS 2. If you run zenohd on the robot, the robot is a second router and cmd_vel from RosClaw (which goes to the Mac’s router) never reaches the bridge that talks to ROS 2.
+- Set RosClaw **zenoh.keyFormat** to **`ros2dds`** (default) so topic keys match the bridge.
+
+### Checklist: Mac vs robot
+
+| Machine | Run this | Config |
+|---------|----------|--------|
+| **Mac** | `zenohd` (router) | `zenohd-rosclaw.json5` |
+| **Robot** | `zenoh-bridge-ros2dds` (bridge) | `zenoh-bridge-ros2dds-robot.json5` (edit `connect.endpoints` to Mac IP) |
+
+### Robot bridge config (allow cmd_vel)
+
+So that Twist commands from RosClaw reach the robot, the bridge on the robot must be allowed to bridge **subscribers** (Zenoh → ROS2). If you use an **allow** config, you must list both publishers and subscribers; otherwise unlisted types are disabled. Use the example in this repo:
+
+- **`scripts/zenoh-bridge-ros2dds-robot.json5`** — sets `"mode": "client"` (bridge connects to the Mac's zenohd), `connect.endpoints` to the Zenoh router, and `plugins.ros2dds.allow` for subscribers (e.g. `.+/cmd_vel`) and publishers (`.+`). Edit `connect.endpoints` and replace `192.168.0.241` with your Mac’s IP (where zenohd runs), then on the robot run: `zenoh-bridge-ros2dds -c /path/to/zenoh-bridge-ros2dds-robot.json5`. From the robot, verify the Mac is reachable: `ping <mac-ip>` and `nc -zv <mac-ip> 7447`; on the Mac, zenohd must listen on all interfaces (not only localhost). **Do not use this file with zenohd** — zenohd does not load the ros2dds plugin and will panic on `allow`.
 
 ## Viewing gateway logs (macOS)
 
@@ -91,3 +104,9 @@ Watch live: `tail -f ~/.openclaw/logs/gateway.err.log`. Look for `[RosClaw] Zeno
 
 - **Topics still empty after connecting**  
   Ensure the robot’s zenoh-bridge-ros2dds is connected to this same router and is publishing. Use `z_sub -e tcp/127.0.0.1:7447 -k '**'` to confirm traffic; then restart the gateway so RosClaw reconnects and lists topics.
+
+- **robot.namespace is set but the robot does not move (no messages on ros2 topic echo)**  
+  On the robot you must run **zenoh-bridge-ros2dds** (the bridge), not zenohd. Then: RosClaw publishes to the Zenoh key `robot3946.../cmd_vel`. Check: (1) **Bridge mode** — use `"mode": "client"` in the bridge config so it connects to the Mac's zenohd instead of running a second router (default is router; two routers must peer correctly for data to flow). (2) **Bridge IP** — `connect.endpoints` must be your Mac’s **actual** IP and reachable from the robot (e.g. Mac 192.168.0.241 and robot 192.168.0.x; wrong subnet like 192.168.1.241 causes “Unable to connect … deadline has elapsed”). (3) **Bridge allow list** — if zenoh-bridge-ros2dds uses an `allow` config, ensure `subscribers` includes `.+/cmd_vel` and the full topic e.g. `/robot3946.../cmd_vel`. (4) **Connectivity** — from the robot: `ping <mac-ip>` and `nc -zv <mac-ip> 7447`; on the Mac, zenohd must listen on all interfaces (not only localhost). (5) **Same router** — the robot bridge must connect to the same zenohd as the gateway. (6) **Gateway logs** — after a move command, look for `[RosClaw] Zenoh publish: key=...`. (7) **Zenoh side** — on the Mac run `z_sub -e tcp/127.0.0.1:7447 -k 'robot3946b404c33e4aa39a8d16deb1c5c593/cmd_vel'` and send a move; if you see data, the gateway is publishing and the issue is the bridge or network on the robot.
+
+- **zenohd stops running on the Mac (exits on its own)**  
+  Run zenohd in the **foreground** in a dedicated terminal to see why it exits: `zenohd -c scripts/zenohd-rosclaw.json5`. If it crashes when the robot’s bridge connects, check the last lines of output (e.g. panic, segfault, or “connection closed”). To keep it running in the background: `nohup zenohd -c scripts/zenohd-rosclaw.json5 >> ~/zenohd.log 2>&1 &` and inspect `~/zenohd.log` if it stops again. On macOS you can also run it as a LaunchAgent (similar to the OpenClaw gateway) so it restarts on failure.

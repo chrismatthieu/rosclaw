@@ -32,9 +32,18 @@ export function registerPublishTool(api: OpenClawPluginApi, config: RosClawConfi
       const transport = getTransport();
       transport.publish({ topic, type, msg: message });
 
-      const result = { success: true, topic, type };
+      const ns = (config.robot?.namespace ?? "").trim();
+      const namespaceApplied = ns && topic.startsWith(`/${ns}/`);
+      let summary = namespaceApplied
+        ? `Published to ${topic} (robot.namespace="${ns}" applied).`
+        : `Published to ${topic}.`;
+      if (!ns && (rawTopic === "/cmd_vel" || rawTopic.trim().replace(/^\/+/, "") === "cmd_vel")) {
+        summary += " If the robot did not move, set robot.namespace in plugin config to the robot's cmd_vel prefix (e.g. robot3946b404c33e4aa39a8d16deb1c5c593), then restart the gateway.";
+      }
+
+      const result = { success: true, topic, type, summary };
       return {
-        content: [{ type: "text", text: JSON.stringify(result) }],
+        content: [{ type: "text", text: summary + "\n" + JSON.stringify({ success: true, topic, type }) }],
         details: result,
       };
     },

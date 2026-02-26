@@ -120,7 +120,7 @@
           },
           "namespace": {
             "type": "string",
-            "description": "ROS2 namespace for the robot",
+            "description": "ROS2 topic namespace so cmd_vel and other root-level topics are published to /<namespace>/<topic> (e.g. robot3946b404c33e4aa39a8d16deb1c5c593 → /robot3946.../cmd_vel). Required if the robot base subscribes to a namespaced cmd_vel.",
             "default": ""
           }
         }

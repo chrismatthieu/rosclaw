@@ -112,7 +112,9 @@ export class ZenohTransport implements RosTransport {
       );
     }
     const payload = encodeCdr(options.type, options.msg);
+    console.info(`[RosClaw] Zenoh publish: key=${key} topic=${options.topic}`);
     s.put(key, payload).catch((err) => {
+      console.error("[RosClaw] Zenoh put failed:", key, err);
       throw new Error(`Zenoh put failed: ${err}`);
     });
   }

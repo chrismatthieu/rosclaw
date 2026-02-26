@@ -219,7 +219,8 @@ The **robot.namespace** config (e.g. `robot-uuid`) makes the plugin use namespac
 
 Once everything is running:
 
-1. Send a message to your bot, e.g. **“Move forward 1 meter”** (if your robot has `/cmd_vel`).
+1. Send a message to your bot, e.g. **“Move forward 1 meter”** (if your robot has `/cmd_vel`).  
+   **If the robot doesn’t move:** the base may subscribe to a **namespaced** cmd_vel (e.g. `/robot3946b404c33e4aa39a8d16deb1c5c593/cmd_vel`). Set **robot.namespace** in the plugin config to that prefix (e.g. `robot3946b404c33e4aa39a8d16deb1c5c593`), then restart the gateway. From the repo: `./scripts/configure_rosclaw.sh --mode zenoh --zenoh-endpoint ws://localhost:10000 --namespace robot3946b404c33e4aa39a8d16deb1c5c593`.
 2. Or **“What do you see?”** if you have a camera topic.
 3. Use **`/estop`** for emergency stop (bypasses the AI).
 

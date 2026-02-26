@@ -109,7 +109,7 @@ function buildRobotContext(
 
   // If discovery returned results, use them
   if (topics.length > 0 || services.length > 0 || actions.length > 0) {
-    return buildDynamicContext(name, topics, services, actions);
+    return buildDynamicContext(name, namespace, topics, services, actions);
   }
 
   // Fall back to hardcoded defaults if discovery failed
@@ -130,12 +130,16 @@ const USER_INTERFACE_BLURB = `
 
 function buildDynamicContext(
   name: string,
+  namespace: string,
   topics: TopicInfo[],
   services: ServiceInfo[],
   actions: ActionInfo[],
 ): string {
   let context = `## Robot: ${name}\n\n`;
   context += `You are connected to a ROS2 robot named "${name}". You can control it using the ros2_* tools.\n\n`;
+  if (namespace) {
+    context += `**Velocity commands:** Use \`ros2_publish\` with topic \`/cmd_vel\`; the plugin sends them to \`/${namespace}/cmd_vel\`.\n\n`;
+  }
   context += `${USER_INTERFACE_BLURB}\n\n`;
 
   // Cap injected lists to avoid huge context (rate limits / token burn)
