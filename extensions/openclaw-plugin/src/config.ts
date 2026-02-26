@@ -52,6 +52,8 @@ export const RosClawConfigSchema = z.object({
     .object({
       name: z.string().default("Robot"),
       namespace: z.string().default(""),
+      /** Camera topic for "what do you see?" (e.g. /camera/camera/color/image_raw/compressed). If set, used as default in ros2_camera_snapshot and in context. */
+      cameraTopic: z.string().default(""),
     })
     .default({}),
 

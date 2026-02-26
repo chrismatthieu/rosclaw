@@ -29,3 +29,7 @@ Default namespace/name in realsense-ros is `camera`/`camera`; if you launch with
 - For RealSense depth: topic `/camera/camera/depth/image_rect_raw`, `message_type: Image`.
 
 Discovery: use **ros2_list_topics** to list available topics, then choose the correct topic and message type for the snapshot.
+
+### Zenoh + robot namespace
+
+When using Zenoh with **robot.namespace** set (e.g. for cmd_vel), camera topics are usually **not** under that namespace—they stay under `/camera/...`. The plugin now includes camera topics in discovery and defaults **ros2_camera_snapshot** to `/camera/camera/color/image_raw/compressed` (RealSense). To override, set **robot.cameraTopic** in the plugin config to your camera topic (e.g. `/camera/camera/color/image_raw/compressed`).

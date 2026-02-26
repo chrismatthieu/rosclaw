@@ -43,7 +43,9 @@ export function registerRobotContext(api: OpenClawPluginApi, config: RosClawConf
 
   api.on("before_agent_start", async (_event, _ctx) => {
     const capabilities = await discoverCapabilities(api, robotNamespace);
-    const context = buildRobotContext(robotName, robotNamespace, capabilities);
+    const cameraTopicHint =
+      (config.robot?.cameraTopic ?? "").trim() || "/camera/camera/color/image_raw/compressed";
+    const context = buildRobotContext(robotName, robotNamespace, capabilities, cameraTopicHint);
     return { prependContext: context };
   });
 }
@@ -70,9 +72,14 @@ async function discoverCapabilities(
       transport.listActions(),
     ]);
 
-    // Filter by namespace if configured
-    const filterByNs = (name: string) =>
-      !namespace || name.startsWith(namespace);
+    // Filter by namespace if configured; always include camera topics (they often live under /camera/, not robot namespace)
+    const filterByNs = (name: string) => {
+      if (!namespace) return true;
+      const normalized = name.replace(/^\/+/, "");
+      if (normalized.startsWith(namespace)) return true;
+      if (normalized.startsWith("camera/") || normalized.includes("/camera/")) return true;
+      return false;
+    };
 
     cache = {
       topics: topics.filter((t: TopicInfo) => filterByNs(t.name)),
@@ -104,6 +111,7 @@ function buildRobotContext(
   name: string,
   namespace: string,
   capabilities: DiscoveryCache,
+  cameraTopicHint: string,
 ): string {
   const { topics, services, actions } = capabilities;
 
@@ -113,7 +121,7 @@ function buildRobotContext(
   }
 
   // Fall back to hardcoded defaults if discovery failed
-  return buildFallbackContext(name, namespace);
+  return buildFallbackContext(name, namespace, cameraTopicHint);
 }
 
 const USER_INTERFACE_BLURB = `
@@ -192,7 +200,7 @@ function buildDynamicContext(
 - All velocity commands are validated before execution
 
 ### Camera / "What does the robot see?"
-- When the user asks what the robot sees (or for a photo, camera view, or snapshot), **always call \`ros2_camera_snapshot\`** (or \`ros2_subscribe_once\` on a camera topic). Do not assume the transport cannot decode images—RosClaw supports \`sensor_msgs/msg/Image\` and \`sensor_msgs/msg/CompressedImage\` over Zenoh and rosbridge. If the tool returns an error, report it; otherwise show or describe the image.
+- When the user asks what the robot sees (or for a photo, camera view, or snapshot), **always call \`ros2_camera_snapshot\`** (or \`ros2_subscribe_once\` on a camera topic). Prefer a topic from the list above that contains **color** and **compressed** (e.g. \`/camera/camera/color/image_raw/compressed\`) for RGB. Do not assume the transport cannot decode images—RosClaw supports \`sensor_msgs/msg/Image\` and \`sensor_msgs/msg/CompressedImage\` over Zenoh and rosbridge. If the tool returns an error, report it; otherwise show or describe the image.
 
 ### Tips
 - Use \`ros2_list_topics\` to discover all available topics
@@ -203,7 +211,11 @@ function buildDynamicContext(
   return context;
 }
 
-function buildFallbackContext(name: string, namespace: string): string {
+function buildFallbackContext(
+  name: string,
+  namespace: string,
+  cameraTopicHint: string,
+): string {
   const prefix = namespace ? `${namespace}/` : "/";
 
   return `
@@ -217,9 +229,9 @@ ${USER_INTERFACE_BLURB}
 - \`${prefix}cmd_vel\` (geometry_msgs/msg/Twist) — Velocity commands
 - \`${prefix}odom\` (nav_msgs/msg/Odometry) — Odometry data
 - \`${prefix}scan\` (sensor_msgs/msg/LaserScan) — LIDAR scan
-- \`${prefix}camera/image_raw/compressed\` (sensor_msgs/msg/CompressedImage) — Camera feed
+- \`${cameraTopicHint}\` (sensor_msgs/msg/CompressedImage) — Camera feed for "what do you see?" Use this with \`ros2_camera_snapshot\`.
 - \`${prefix}battery_state\` (sensor_msgs/msg/BatteryState) — Battery status
-- RealSense (if present): \`/camera/camera/color/image_raw\` (Image), \`/camera/camera/color/image_raw/compressed\` (CompressedImage), \`/camera/camera/depth/image_rect_raw\` (depth). Use \`ros2_camera_snapshot\` for RGB; use \`ros2_depth_distance\` to get distance in meters (center of depth image). For Follow Me with real distance, set \`followMe.depthTopic\` to the depth topic.
+- RealSense: \`/camera/camera/color/image_raw\` (Image), \`/camera/camera/color/image_raw/compressed\` (CompressedImage), \`/camera/camera/depth/image_rect_raw\` (depth). Use \`ros2_camera_snapshot\` for RGB; use \`ros2_depth_distance\` for distance in meters.
 
 ### Missions
 - **Follow Me** (native): Use **\`follow_robot\`** with action \`start\` / \`stop\` / \`status\` when the user says "follow me", "start following", or "stop following". Default is **depth only** (no Ollama). Set followMe.useOllama for Qwen. Use **\`follow_me_see\`** when useOllama is on to report what the tracker sees.

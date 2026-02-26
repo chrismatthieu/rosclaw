@@ -61,7 +61,10 @@ export function registerCameraTool(api: OpenClawPluginApi, config: RosClawConfig
     }),
 
     async execute(_toolCallId, params) {
-      const rawTopic = (params["topic"] as string | undefined) ?? "/camera/image_raw/compressed";
+      const defaultTopic =
+        (config.robot?.cameraTopic ?? "").trim() ||
+        "/camera/camera/color/image_raw/compressed";
+      const rawTopic = (params["topic"] as string | undefined) ?? defaultTopic;
       const topic = toNamespacedTopic(config, rawTopic);
       const rawMsgType = params["message_type"] as string | undefined;
       const messageType: "CompressedImage" | "Image" =
@@ -105,16 +108,31 @@ export function registerCameraTool(api: OpenClawPluginApi, config: RosClawConfig
         }, timeout);
       });
 
-      // Return image as proper image content to avoid sending huge base64 in text (rate limits / token burn).
+      // Return image as proper image content (OpenAI supports jpeg, png, gif, webp).
       const base64 = (result.data as string) ?? "";
-      const format = (result.format as string) ?? "jpeg";
-      const mimeType = format === "png" ? "image/png" : "image/jpeg";
+      const format = String((result.format as string) ?? "jpeg").toLowerCase();
+      const mimeType =
+        format === "png"
+          ? "image/png"
+          : format === "gif"
+            ? "image/gif"
+            : format === "webp"
+              ? "image/webp"
+              : "image/jpeg";
       const summary = `Captured one frame from ${topic}${result.width != null ? ` (${result.width}×${result.height})` : ""}.`;
 
       const content: Array<{ type: "text"; text: string } | { type: "image"; data: string; mimeType: string }> = [
         { type: "text", text: summary },
       ];
-      if (base64) content.push({ type: "image", data: base64, mimeType });
+      // Only attach image if we have valid base64 (avoid OpenAI 400 "invalid image")
+      if (base64 && /^[A-Za-z0-9+/=]+$/.test(base64) && base64.length >= 100) {
+        content.push({ type: "image", data: base64, mimeType });
+      } else if (!base64) {
+        content.push({
+          type: "text",
+          text: " (No image data received—topic may be idle or transport returned empty.)",
+        });
+      }
 
       return {
         content,
