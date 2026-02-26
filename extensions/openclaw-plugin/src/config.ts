@@ -61,11 +61,13 @@ export const RosClawConfigSchema = z.object({
     })
     .default({}),
 
-  /** Native Follow Me: VLM (Ollama Qwen) + camera + cmd_vel. No external apps. */
+  /** Native Follow Me: depth (and optional Ollama VLM) + cmd_vel. No external apps. */
   followMe: z
     .object({
+      /** If false (default), use depth only—no Ollama. The chat's "what do you see" uses the assistant's vision model; Follow Me does not call it. Set true to use Qwen for person detection and left/right steering. */
+      useOllama: z.boolean().default(false),
       ollamaUrl: z.string().default("http://localhost:11434"),
-      vlmModel: z.string().default("qwen2-vl:7b"),
+      vlmModel: z.string().default("qwen3-vl:2b"),
       cameraTopic: z.string().default("/camera/image_raw/compressed"),
       cameraMessageType: z.enum(["CompressedImage", "Image"]).default("CompressedImage"),
       /** Override cmd_vel topic (e.g. /robot3946.../cmd_vel). If set, used instead of robot.namespace + /cmd_vel. */
@@ -76,6 +78,8 @@ export const RosClawConfigSchema = z.object({
       minLinearVelocity: z.number().min(0).max(1).default(0.3),
       /** Optional depth image topic (e.g. RealSense /camera/camera/depth/image_rect_raw). If set, Follow Me uses real distance vs targetDistance instead of VLM distance_hint only. */
       depthTopic: z.string().default(""),
+      /** Optional HTTP callback for human detection (e.g. OpenAI proxy). POST body: { "image": "<base64>" }. Expect JSON: { "person_visible": boolean, "position"?: "left"|"center"|"right", "distance_hint"?: "close"|"medium"|"far" }. Distance for follow is always from RealSense depth; this is for person_visible and left/right. */
+      visionCallbackUrl: z.string().default(""),
     })
     .default({}),
 });

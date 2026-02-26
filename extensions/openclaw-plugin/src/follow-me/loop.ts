@@ -130,6 +130,35 @@ function parseVlmResponse(text: string): VlmDetection {
   return def;
 }
 
+const VISION_CALLBACK_TIMEOUT_MS = 10000;
+
+/** POST image to vision callback URL; expect JSON with person_visible, position?, distance_hint?. */
+async function callVisionCallback(url: string, imageBase64: string, timeoutMs = VISION_CALLBACK_TIMEOUT_MS): Promise<VlmDetection> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image: imageBase64 }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(`Vision callback ${res.status}: ${t.slice(0, 200)}`);
+    }
+    const text = await res.text();
+    return parseVlmResponse(text);
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error(`Vision callback timeout (${timeoutMs}ms)`);
+    }
+    throw err;
+  }
+}
+
 const DEPTH_DEADZONE_M = 0.2;
 
 function computeTwist(
@@ -137,7 +166,8 @@ function computeTwist(
   targetDistance: number,
   safety: RosClawConfig["safety"],
   minLinearVelocity: number,
-  depthM?: number,
+  depthM: number | undefined,
+  depthOnlyMode: boolean,
 ): { linear_x: number; angular_z: number } {
   const maxLin = safety?.maxLinearVelocity ?? 1.0;
   const maxAng = safety?.maxAngularVelocity ?? 1.5;
@@ -146,17 +176,18 @@ function computeTwist(
   let linear_x = 0;
   let angular_z = 0;
 
-  // When we have valid depth, use it for approach/retreat regardless of VLM confidence
+  // When we have valid depth, use it for approach/retreat (stay within target distance)
   if (depthM != null && Number.isFinite(depthM) && depthM > 0) {
     const error = depthM - targetDistance;
     if (error > DEPTH_DEADZONE_M) linear_x = minLin;
     else if (error < -DEPTH_DEADZONE_M) linear_x = -minLin;
   }
 
-  // Angular (and VLM-based linear when no depth): require person_visible
-  if (!det.person_visible) {
-    if (linear_x === 0) angular_z = Math.min(0.3, maxAng); // search spin when no depth command
-    // else keep linear_x from depth, angular stays 0
+  // In depth-only mode we never have person_visible; don't spin—just stop if no depth command
+  if (depthOnlyMode) {
+    // angular stays 0; linear already set from depth above
+  } else if (!det.person_visible) {
+    if (linear_x === 0) angular_z = Math.min(0.3, maxAng); // search spin only when using Ollama
   } else {
     switch (det.position) {
       case "left":
@@ -207,6 +238,35 @@ export function getFollowMeCmdVelTopic(config: RosClawConfig): string {
   return buildCmdVelTopic(config);
 }
 
+/**
+ * Run one Follow Me detection (same camera + Ollama + prompt as the mission).
+ * Use from a tool so the user can ask "what does the Follow Me tracker see?" and get the same result the mission uses.
+ */
+export async function runFollowMeDetectionOnce(
+  transport: RosTransport,
+  config: RosClawConfig,
+): Promise<{ detection: VlmDetection; vlm_model: string; camera_topic: string; error?: string }> {
+  const fm = config.followMe ?? {};
+  const ollamaUrl = fm.ollamaUrl ?? "http://localhost:11434";
+  const vlmModel = fm.vlmModel ?? "qwen3-vl:2b";
+  const cameraTopic = fm.cameraTopic ?? "/camera/image_raw/compressed";
+  const cameraMessageType = fm.cameraMessageType ?? "CompressedImage";
+  try {
+    const base64 = await getCameraSnapshot(transport, cameraTopic, cameraMessageType);
+    const responseText = await callOllamaVision(ollamaUrl, vlmModel, base64, VLM_PROMPT);
+    const detection = parseVlmResponse(responseText);
+    return { detection, vlm_model: vlmModel, camera_topic: cameraTopic };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      detection: { person_visible: false },
+      vlm_model: vlmModel,
+      camera_topic: cameraTopic,
+      error: msg,
+    };
+  }
+}
+
 let loopIntervalId: ReturnType<typeof setInterval> | null = null;
 let tickInProgress = false;
 let lastError: string | null = null;
@@ -233,6 +293,11 @@ export function getLastFollowMeState(): {
   };
 }
 
+const ZERO_TWIST = {
+  linear: { x: 0, y: 0, z: 0 },
+  angular: { x: 0, y: 0, z: 0 },
+};
+
 export function stopFollowMeLoop(
   transport: RosTransport,
   config: RosClawConfig,
@@ -242,14 +307,10 @@ export function stopFollowMeLoop(
     loopIntervalId = null;
   }
   const topic = buildCmdVelTopic(config);
-  transport.publish({
-    topic,
-    type: TWIST_TYPE,
-    msg: {
-      linear: { x: 0, y: 0, z: 0 },
-      angular: { x: 0, y: 0, z: 0 },
-    },
-  });
+  // Send zero repeatedly so the base reliably stops (some drivers need multiple msgs)
+  for (let i = 0; i < 5; i++) {
+    transport.publish({ topic, type: TWIST_TYPE, msg: ZERO_TWIST });
+  }
 }
 
 export function startFollowMeLoop(
@@ -262,8 +323,13 @@ export function startFollowMeLoop(
   }
 
   const fm = config.followMe ?? {};
+  const useOllama = fm.useOllama ?? false;
+  const visionCallbackUrl = (fm.visionCallbackUrl ?? "").trim();
+  const useVisionCallback = visionCallbackUrl.length > 0;
+  const needCamera = useOllama || useVisionCallback;
+  const depthOnlyMode = !useOllama && !useVisionCallback;
   const ollamaUrl = fm.ollamaUrl ?? "http://localhost:11434";
-  const vlmModel = fm.vlmModel ?? "qwen2-vl:7b";
+  const vlmModel = fm.vlmModel ?? "qwen3-vl:2b";
   const cameraTopic = fm.cameraTopic ?? "/camera/image_raw/compressed";
   const cameraMessageType = fm.cameraMessageType ?? "CompressedImage";
   const targetDistance = fm.targetDistance ?? 0.5;
@@ -288,24 +354,51 @@ export function startFollowMeLoop(
   loopIntervalId = setInterval(async () => {
     if (tickInProgress) return;
     tickInProgress = true;
+    lastError = null;
     try {
-      lastError = null;
-      // Fetch RGB and depth in parallel (depth topic defaults to RealSense; short timeout if not configured)
-      const [base64, depthResult] = await Promise.all([
-        getCameraSnapshot(transport, cameraTopic, cameraMessageType),
-        getDepthDistance(transport, depthTopic, depthTimeoutMs).catch(() => null),
-      ]);
-      const responseText = await callOllamaVision(ollamaUrl, vlmModel, base64, VLM_PROMPT);
-      const det = parseVlmResponse(responseText);
+      // When depth-only: fetch depth only. When useOllama or visionCallbackUrl: fetch camera + depth.
+      const depthPromise = getDepthDistance(transport, depthTopic, depthTimeoutMs).catch(() => null);
+      const camPromise = needCamera
+        ? getCameraSnapshot(transport, cameraTopic, cameraMessageType)
+        : Promise.resolve(null as string | null);
+      const [camSettled, depthSettled] = await Promise.allSettled([camPromise, depthPromise]);
+      const base64 = camSettled.status === "fulfilled" ? camSettled.value : null;
+      const depthResult = depthSettled.status === "fulfilled" ? depthSettled.value : null;
+      if (needCamera && camSettled.status === "rejected") {
+        lastError = camSettled.reason instanceof Error ? camSettled.reason.message : String(camSettled.reason);
+        logger.warn(`Follow Me camera error (using depth only this tick): ${lastError}`);
+      }
+
+      let det: VlmDetection = { person_visible: false };
+      if (base64) {
+        if (useVisionCallback) {
+          try {
+            det = await callVisionCallback(visionCallbackUrl, base64);
+          } catch (cbErr) {
+            const cbMsg = cbErr instanceof Error ? cbErr.message : String(cbErr);
+            lastError = lastError ? `${lastError}; vision callback: ${cbMsg}` : cbMsg;
+            logger.warn(`Follow Me vision callback error (using depth only this tick): ${cbMsg}`);
+          }
+        } else if (useOllama) {
+          try {
+            const responseText = await callOllamaVision(ollamaUrl, vlmModel, base64, VLM_PROMPT);
+            det = parseVlmResponse(responseText);
+          } catch (vlmErr) {
+            const vlmMsg = vlmErr instanceof Error ? vlmErr.message : String(vlmErr);
+            lastError = lastError ? `${lastError}; VLM: ${vlmMsg}` : vlmMsg;
+            logger.warn(`Follow Me VLM error (using depth only this tick): ${vlmMsg}`);
+          }
+        }
+      }
       lastDetection = det;
       const depthM = depthResult?.valid === true ? depthResult.distance_m : undefined;
-      const twist = computeTwist(det, targetDistance, config.safety ?? {}, minLinearVelocity, depthM);
+      const twist = computeTwist(det, targetDistance, config.safety ?? {}, minLinearVelocity, depthM, depthOnlyMode);
       lastTwist = twist;
       tickCount += 1;
       const { linear_x, angular_z } = twist;
 
       if (tickCount <= 3 || tickCount % 20 === 0) {
-        logger.info(`Follow Me: det=${JSON.stringify(det)} twist=(${linear_x.toFixed(2)}, ${angular_z.toFixed(2)})`);
+        logger.info(`Follow Me: det=${JSON.stringify(det)} depth=${depthM ?? "n/a"}m twist=(${linear_x.toFixed(2)}, ${angular_z.toFixed(2)})`);
       }
 
       transport.publish({
@@ -330,6 +423,7 @@ export function startFollowMeLoop(
     }
   }, intervalMs);
 
-  logger.info(`Follow Me started: cmd_vel=${topic}, camera=${cameraTopic}, depth=${depthTopic || "none"}, VLM=${vlmModel}, target=${targetDistance}m, minLin=${minLinearVelocity}m/s, ${rateHz}Hz`);
+  const visionLabel = useVisionCallback ? `callback ${visionCallbackUrl}` : useOllama ? `Ollama ${vlmModel}` : "depth only";
+  logger.info(`Follow Me started: cmd_vel=${topic}, depth=${depthTopic || "none"}, vision=${visionLabel}, target=${targetDistance}m, minLin=${minLinearVelocity}m/s, ${rateHz}Hz`);
   return topic;
 }

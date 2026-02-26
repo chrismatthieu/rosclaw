@@ -180,7 +180,7 @@ function buildDynamicContext(
   }
 
   context += `### Missions
-- **Follow Me** (native): The user can say "follow me", "start following", "stop following". Use the **\`follow_robot\`** tool (action: \`start\` to begin, \`stop\` to halt, \`status\` to check). The mission uses the robot's camera (ROS2) + Qwen VLM (Ollama) to find a person and issue Twist commands to follow ~1 m behind. No external apps—fully inside OpenClaw + RosClaw. Ensure Ollama is running with a vision model (e.g. qwen2-vl:7b) and the plugin's followMe.cameraTopic matches the robot's camera.
+- **Follow Me** (native): The user can say "follow me", "start following", "stop following". Use the **\`follow_robot\`** tool (action: \`start\` to begin, \`stop\` to halt, \`status\` to check). By default Follow Me uses **depth only** (no Ollama)—the plugin cannot call the chat's vision model from its loop. Set followMe.useOllama to true to use Qwen for person detection. Use **\`follow_me_see\`** when useOllama is on and the user asks what the tracker sees.
 
 ### Safety Limits
 - Maximum linear velocity: 1.0 m/s
@@ -215,7 +215,7 @@ ${USER_INTERFACE_BLURB}
 - RealSense (if present): \`/camera/camera/color/image_raw\` (Image), \`/camera/camera/color/image_raw/compressed\` (CompressedImage), \`/camera/camera/depth/image_rect_raw\` (depth). Use \`ros2_camera_snapshot\` for RGB; use \`ros2_depth_distance\` to get distance in meters (center of depth image). For Follow Me with real distance, set \`followMe.depthTopic\` to the depth topic.
 
 ### Missions
-- **Follow Me** (native): Use **\`follow_robot\`** with action \`start\` / \`stop\` / \`status\` when the user says "follow me", "start following", or "stop following". Camera + Qwen VLM (Ollama) + cmd_vel; no external apps.
+- **Follow Me** (native): Use **\`follow_robot\`** with action \`start\` / \`stop\` / \`status\` when the user says "follow me", "start following", or "stop following". Default is **depth only** (no Ollama). Set followMe.useOllama for Qwen. Use **\`follow_me_see\`** when useOllama is on to report what the tracker sees.
 
 ### Safety Limits
 - Maximum linear velocity: 1.0 m/s

@@ -9,8 +9,8 @@ Use when the user wants the robot to follow them:
 
 ## Prerequisites
 
-- Robot has a camera (2D or RealSense) publishing on a ROS2 topic (e.g. `/camera/image_raw/compressed`).
-- OpenClaw gateway can reach **Ollama** with a Qwen vision model (e.g. `qwen2-vl:7b`). Configure **followMe.ollamaUrl** and **followMe.vlmModel** if Ollama is not on localhost or you use a different model.
+- **Default (depth-only):** Robot has a depth camera (e.g. RealSense) so Follow Me can use depth vs target distance. No Ollama required.
+- **Optional (Ollama):** Set **followMe.useOllama** to true to use Qwen for person detection and left/right steering. Then Ollama + vision model (e.g. qwen3-vl:2b) must be reachable. "What do you see?" uses the **chat assistant's vision model**; Follow Me does not call that model (the plugin cannot invoke the chat from its loop). So by default Follow Me uses depth only.
 - Plugin **followMe.cameraTopic** should match the robot’s camera topic.
 
 ## Steps
@@ -47,4 +47,6 @@ action: stop
 ## Tips
 
 - To “stay 2 meters back”, set **followMe.targetDistance** to 2. With **followMe.depthTopic** set, the loop uses real depth vs this target.
-- If Follow Me has no detections or the user asks "is Qwen/Ollama running?", use **ollama_status** to check reachability and that the vision model is available. Ensure Ollama is running and the model is pulled (e.g. `ollama run qwen2-vl:7b`).
+- **Default: depth only.** No spinning when depth is missing—robot stops. Distance for follow is always from **RealSense depth** (stay within followMe.targetDistance, e.g. 0.5 m). The plugin cannot call OpenClaw's chat vision from the loop.
+- **OpenAI / chat vision:** To use the same model as "what do you see" (e.g. OpenAI), set **followMe.visionCallbackUrl** to an HTTP endpoint that accepts POST `{ "image": "<base64>" }` and returns JSON `{ "person_visible": true|false, "position": "left"|"center"|"right", "distance_hint": "close"|"medium"|"far" }`. That endpoint can call OpenAI (or any vision API) and return this format. Follow distance is still from RealSense depth.
+- **follow_me_see** runs the Ollama pipeline (when useOllama is on) on one frame. Use **ollama_status** when useOllama is on and detections are missing.

@@ -48,15 +48,17 @@ export function registerOllamaStatusTool(
         }
         const json = (await res.json()) as { models?: Array<{ name?: string }> };
         const models = (json.models ?? []).map((m) => m.name ?? "").filter(Boolean);
-        const vlmModel = config.followMe?.vlmModel ?? "qwen2-vl:7b";
-        const hasVlm = models.some((n) => n.includes(vlmModel.split(":")[0]) || n === vlmModel);
+        const vlmModel = config.followMe?.vlmModel ?? "qwen3-vl:2b";
+        const hasVlm = models.some((n) => n === vlmModel || n.startsWith(vlmModel.split(":")[0] + ":"));
+        const visionLike = models.filter((n) => /vl|vision/i.test(n));
+        const suggest = visionLike.length > 0 ? visionLike[0] : models[0];
         let text = `Ollama is reachable at ${baseUrl}. Models: ${models.length ? models.join(", ") : "none"}.`;
         if (!hasVlm && models.length > 0) {
-          text += ` Follow Me expects a vision model like "${vlmModel}"—pull it with: ollama run ${vlmModel}.`;
+          text += ` Follow Me is currently configured for "${vlmModel}" (not in list). To use what you have: set followMe.vlmModel to "${suggest}" in the RosClaw plugin config and restart Follow Me. No need to pull another model.`;
         } else if (!hasVlm) {
-          text += ` No models listed. Pull the vision model: ollama run ${vlmModel}.`;
+          text += ` No models listed. Pull a vision model: ollama run ${vlmModel}.`;
         } else {
-          text += ` Vision model for Follow Me (${vlmModel}) appears available.`;
+          text += ` Follow Me is configured for ${vlmModel} and it is available.`;
         }
         return {
           content: [{ type: "text" as const, text }],

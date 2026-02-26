@@ -28,10 +28,15 @@ Missions are higher-level behaviors exposed to the AI agent via **skills** and *
 - The loop: subscribe to the configured camera topic → get one frame → send it to Ollama (Qwen VLM) with a prompt asking for person visibility, position (left/center/right), and distance hint (close/medium/far) → compute linear and angular velocity → publish to cmd_vel. Repeats at the configured rate (default 5 Hz). Velocities are clamped to the plugin’s safety limits.
 - No dependency on openclaw-robotics or the rosclaw_follow_me ROS2 package; everything is in the plugin + Ollama + ROS2 transport.
 
+### Modes: depth-only, Ollama, or vision callback
+
+- **Depth-only (default):** No Ollama, no camera for detection. The loop only uses **RealSense depth** to stay at **followMe.targetDistance** (e.g. 0.5 m). If depth is missing, the robot **stops** (no spinning). Set **followMe.depthTopic** if your depth topic is not the default RealSense one.
+- **Ollama:** Set **followMe.useOllama** to true for Qwen-based person detection and left/right steering. Distance for follow still comes from depth when available.
+- **Vision callback (e.g. OpenAI):** Set **followMe.visionCallbackUrl** to an HTTP endpoint that accepts POST `{ "image": "<base64>" }` and returns JSON `{ "person_visible": boolean, "position"?: "left"|"center"|"right", "distance_hint"?: "close"|"medium"|"far" }`. That endpoint can call OpenAI (or the same model as OpenClaw’s “what do you see”) and return this format. **Distance for follow is always from RealSense depth**; the callback is only for person_visible and left/right.
+
 ### Requirements
 
-- **ROS2** camera topic (2D or RealSense) reachable via rosbridge.
-- **Ollama** with a Qwen vision model (e.g. qwen2-vl:7b) reachable from the machine running the OpenClaw gateway.
+- **ROS2** depth topic (e.g. RealSense) for distance; optionally camera + Ollama or vision callback for person detection.
 
 ### Troubleshooting: motors not moving
 

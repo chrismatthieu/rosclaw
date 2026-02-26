@@ -23,7 +23,7 @@ export function registerFollowRobotTool(
     name: "follow_robot",
     label: "Follow Me",
     description:
-      "Start or stop the native Follow Me mission. Uses the robot's camera (2D or RealSense) and a Qwen VLM (Ollama) to find and follow a person, keeping about 1 m behind. No external apps—runs inside RosClaw. " +
+      "Start or stop the native Follow Me mission. By default uses depth only (no Ollama)—robot follows based on depth vs target distance. Optional: set followMe.useOllama to use Qwen for person detection and left/right steering. " +
       "Use when the user says 'follow me', 'start following', 'stop following'. Actions: start, stop, status.",
 
     parameters: Type.Object({
@@ -47,6 +47,14 @@ export function registerFollowRobotTool(
         let message = running
           ? `Follow Me is active; publishing to ${cmdVelTopic}.`
           : "Follow Me is stopped.";
+        const useOllama = config.followMe?.useOllama ?? false;
+        const visionCallbackUrl = (config.followMe?.visionCallbackUrl ?? "").trim();
+        const vlmModel = config.followMe?.vlmModel ?? "qwen3-vl:2b";
+        if (running) {
+          if (visionCallbackUrl) message += ` Vision: callback (e.g. OpenAI).`;
+          else if (useOllama) message += ` Vision: Ollama ${vlmModel}.`;
+          else message += ` Vision: depth only.`;
+        }
         if (running && state.last_error) {
           message += ` Last tick failed: ${state.last_error}. If the user sees only zero twist, the loop is failing every tick—check camera topic, Ollama (reachable? model loaded?), and depth topic.`;
         } else if (running && state.last_twist && state.tick_count > 0) {
@@ -56,6 +64,7 @@ export function registerFollowRobotTool(
           success: true,
           running,
           cmd_vel_topic: cmdVelTopic,
+          vision: useOllama ? `Ollama ${vlmModel}` : "depth only",
           message,
         };
         if (running) {
@@ -99,6 +108,10 @@ export function registerFollowRobotTool(
         try {
           const transport = getTransport();
           const cmdVelTopic = startFollowMeLoop(transport, config, api.logger);
+          const useOllama = config.followMe?.useOllama ?? false;
+          const visionCallbackUrl = (config.followMe?.visionCallbackUrl ?? "").trim();
+          const vlmModel = config.followMe?.vlmModel ?? "qwen3-vl:2b";
+          const visionLabel = visionCallbackUrl ? "vision callback (e.g. OpenAI)" : useOllama ? `Ollama ${vlmModel}` : "depth only";
           return {
             content: [
               {
@@ -106,11 +119,12 @@ export function registerFollowRobotTool(
                 text: JSON.stringify({
                   success: true,
                   cmd_vel_topic: cmdVelTopic,
-                  message: `Follow Me started. Publishing Twist to ${cmdVelTopic}. If the wheels don't move, confirm the robot subscribes to this exact topic (e.g. rostopic echo ${cmdVelTopic}). Say 'stop following' to stop.`,
+                  vision: visionLabel,
+                  message: `Follow Me started (${visionLabel}). Publishing Twist to ${cmdVelTopic}. Say 'stop following' to stop.`,
                 }),
               },
             ],
-            details: { success: true, cmd_vel_topic: cmdVelTopic },
+            details: { success: true, cmd_vel_topic: cmdVelTopic, vision: visionLabel },
           };
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);

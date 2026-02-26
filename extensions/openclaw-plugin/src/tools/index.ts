@@ -10,6 +10,7 @@ import { registerCameraTool } from "./ros2-camera.js";
 import { registerDepthDistanceTool } from "./ros2-depth-distance.js";
 import { registerFollowRobotTool } from "./follow-robot.js";
 import { registerOllamaStatusTool } from "./ollama-status.js";
+import { registerFollowMeDetectionTool } from "./follow-me-detection.js";
 
 /**
  * Register all ROS2 tools and mission tools with the OpenClaw AI agent.
@@ -24,5 +25,6 @@ export function registerTools(api: OpenClawPluginApi, config: RosClawConfig): vo
   registerCameraTool(api);
   registerDepthDistanceTool(api);
   registerOllamaStatusTool(api, config);
+  registerFollowMeDetectionTool(api, config);
   registerFollowRobotTool(api, config);
 }
