@@ -5,13 +5,15 @@
 
 import { Type } from "@sinclair/typebox";
 import type { OpenClawPluginApi } from "../plugin-api.js";
+import type { RosClawConfig } from "../config.js";
+import { toNamespacedTopic } from "../topic-utils.js";
 import { getTransport } from "../service.js";
 import { getDepthDistance } from "../depth.js";
 import { REALSENSE_CAMERA_TOPICS } from "./ros2-camera.js";
 
 const DEFAULT_DEPTH_TOPIC = REALSENSE_CAMERA_TOPICS.depth_raw;
 
-export function registerDepthDistanceTool(api: OpenClawPluginApi): void {
+export function registerDepthDistanceTool(api: OpenClawPluginApi, config: RosClawConfig): void {
   api.registerTool({
     name: "ros2_depth_distance",
     label: "ROS2 depth distance",
@@ -30,7 +32,8 @@ export function registerDepthDistanceTool(api: OpenClawPluginApi): void {
     }),
 
     async execute(_toolCallId, params) {
-      const topic = (params["topic"] as string | undefined)?.trim() || DEFAULT_DEPTH_TOPIC;
+      const rawTopic = (params["topic"] as string | undefined)?.trim() || DEFAULT_DEPTH_TOPIC;
+      const topic = toNamespacedTopic(config, rawTopic);
       const timeout = (params["timeout"] as number | undefined) ?? 5000;
 
       try {

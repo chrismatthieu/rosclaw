@@ -6,6 +6,7 @@ import { registerSafetyHook } from "./safety/validator.js";
 import { registerRobotContext } from "./context/robot-context.js";
 import { registerEstopCommand } from "./commands/estop.js";
 import { registerTransportCommand } from "./commands/transport.js";
+import { isCdrTypeSupported } from "./transport/zenoh/cdr.js";
 
 /**
  * RosClaw — OpenClaw plugin for ROS2 robot control via natural language.
@@ -16,6 +17,8 @@ export default {
 
   register(api: OpenClawPluginApi): void {
     api.logger.info("RosClaw plugin loading...");
+    const imageSupported = isCdrTypeSupported("sensor_msgs/msg/CompressedImage");
+    api.logger.info(`RosClaw: Zenoh CDR Image/CompressedImage supported=${imageSupported}`);
 
     const config = parseConfig(api.pluginConfig ?? {});
 

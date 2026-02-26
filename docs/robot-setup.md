@@ -38,8 +38,9 @@ Then start the bridges on the robot with `./scripts/run_demo_native.sh` and rest
 |-------|------------------|------------|----------|
 | **Mode A** (same machine) | The robot | ROS2 + (optional) rosbridge on localhost | Single robot, all-in-one demo |
 | **Mode B** (network) | Your laptop or server | ROS2 + rosbridge_server | Dev/testing, multi-robot |
+| **Mode D** (Zenoh) | Any | ROS2 with rmw_zenoh_cpp + Zenoh router | Zenoh-based stacks |
 
-Choose **Mode A** if OpenClaw is installed on the robot. Choose **Mode B** if OpenClaw runs on another machine and connects to the robot over the network.
+Choose **Mode A** if OpenClaw is installed on the robot. Choose **Mode B** if OpenClaw runs on another machine and connects to the robot over the network. Choose **Mode D** if your robot uses Zenoh RMW and a Zenoh router.
 
 ---
 
@@ -182,6 +183,19 @@ This sources the workspace and starts `rosbridge_server`. In another terminal, r
    ```
 5. Start OpenClaw and your messaging app; the plugin will connect to the robot at that URL.
 
+### If using Zenoh (Mode D)
+
+1. Run a Zenoh router (**zenohd**) with **zenoh-plugin-remote-api** so the plugin can connect. RosClaw uses **zenoh-ts**, which connects only via **WebSocket** (e.g. `ws://localhost:10000`), not native TCP. If you only start `zenohd` with default TCP (7447), native tools like `z_sub -e tcp/127.0.0.1:7447` will see traffic but RosClaw will not. See [Zenoh setup for RosClaw](zenoh-rosclaw.md) for a config that enables the remote-api WebSocket on port 10000.
+2. In OpenClaw, set the RosClaw plugin config:
+   - **Transport mode:** `zenoh`
+   - **Zenoh Router Endpoint:** `ws://<ROUTER_IP>:10000` (or the URL your router advertises)
+   - **Zenoh Domain ID:** match your `ROS_DOMAIN_ID` (default `0`)
+3. Optionally set **ROS2 Robot Namespace** (e.g. `robot-uuid`). Topics will be namespaced (e.g. `/robot-uuid/cmd_vel`). This applies to all transport modes.
+
+### ROS2 topic namespace
+
+The **robot.namespace** config (e.g. `robot-uuid`) makes the plugin use namespaced topics: root-level names like `cmd_vel` become `/robot-uuid/cmd_vel`. Use this when multiple robots share the same ROS 2 / Zenoh network. Documented in the plugin config as “ROS2 topic namespace; e.g. robot-uuid gives topics like /robot-uuid/cmd_vel”.
+
 ---
 
 ## Quick checks
@@ -253,3 +267,25 @@ If `sudo apt install ros-jazzy-rosbridge-suite` fails with **404 Not Found** (st
    ```
 
 For deployment with OpenClaw in the cloud and the robot behind NAT, see **Mode C** in [Architecture](architecture.md) (WebRTC + `rosclaw_agent` on the robot).
+
+---
+
+## Launch script (mode and namespace)
+
+Use the configuration script to set transport mode, robot namespace, and optional Docker in one go:
+
+```bash
+./scripts/configure_rosclaw.sh --interactive
+```
+
+Or with flags:
+
+| Goal | Example |
+|------|---------|
+| Mode A (OpenClaw on robot) | `--mode A` |
+| Mode B (robot on network) | `--mode B --robot-ip 192.168.1.50` |
+| Mode D (Zenoh) | `--mode D --zenoh-endpoint ws://localhost:10000` |
+| Robot namespace | `--namespace robot-uuid` (topics like `/robot-uuid/cmd_vel`) |
+| Demo with Docker (Mode B + local rosbridge) | `--docker` |
+
+The script updates `~/.openclaw/openclaw.json` (or `OPENCLAW_CONFIG`) with `plugins.entries.rosclaw.config`. It requires **jq** for JSON edits; without jq it prints the options for you to set manually. With `--docker`, it also starts the Docker Compose ROS2+rosbridge service so you can point the plugin at `ws://localhost:9090`.

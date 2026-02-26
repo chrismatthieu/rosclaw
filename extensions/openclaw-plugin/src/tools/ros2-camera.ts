@@ -1,5 +1,7 @@
 import { Type } from "@sinclair/typebox";
 import type { OpenClawPluginApi } from "../plugin-api.js";
+import type { RosClawConfig } from "../config.js";
+import { toNamespacedTopic } from "../topic-utils.js";
 import { getTransport } from "../service.js";
 
 /** Known camera topic patterns for common setups (e.g. RealSense). */
@@ -13,15 +15,17 @@ export const REALSENSE_CAMERA_TOPICS = {
 const COMPRESSED_IMAGE_TYPE = "sensor_msgs/msg/CompressedImage";
 const IMAGE_TYPE = "sensor_msgs/msg/Image";
 
-/** Convert sensor_msgs/Image data (byte array) to base64. */
+/** Convert sensor_msgs image data (byte array or base64 string) to base64. */
 function imageDataToBase64(data: unknown): string {
+  if (data == null) return "";
   if (typeof data === "string") return data;
+  if (data instanceof Uint8Array) return Buffer.from(data).toString("base64");
   if (Array.isArray(data)) {
     const bytes = new Uint8Array(data.length);
     for (let i = 0; i < data.length; i++) bytes[i] = Number(data[i]) & 0xff;
     return Buffer.from(bytes).toString("base64");
   }
-  throw new Error("Image data must be string (base64) or array of bytes");
+  throw new Error("Image data must be string (base64), Uint8Array, or array of bytes");
 }
 
 /**
@@ -29,7 +33,7 @@ function imageDataToBase64(data: unknown): string {
  * Grabs a single frame from a ROS2 camera topic.
  * Supports CompressedImage (default) and raw Image (e.g. RealSense color/depth).
  */
-export function registerCameraTool(api: OpenClawPluginApi): void {
+export function registerCameraTool(api: OpenClawPluginApi, config: RosClawConfig): void {
   api.registerTool({
     name: "ros2_camera_snapshot",
     label: "ROS2 Camera Snapshot",
@@ -57,8 +61,11 @@ export function registerCameraTool(api: OpenClawPluginApi): void {
     }),
 
     async execute(_toolCallId, params) {
-      const topic = (params["topic"] as string | undefined) ?? "/camera/image_raw/compressed";
-      const messageType = (params["message_type"] as "CompressedImage" | "Image" | undefined) ?? "CompressedImage";
+      const rawTopic = (params["topic"] as string | undefined) ?? "/camera/image_raw/compressed";
+      const topic = toNamespacedTopic(config, rawTopic);
+      const rawMsgType = params["message_type"] as string | undefined;
+      const messageType: "CompressedImage" | "Image" =
+        rawMsgType === "Image" ? "Image" : "CompressedImage";
       const timeout = (params["timeout"] as number | undefined) ?? 10000;
 
       const transport = getTransport();
@@ -82,11 +89,12 @@ export function registerCameraTool(api: OpenClawPluginApi): void {
                 height: msg["height"],
               });
             } else {
+              const raw = msg["data"];
               resolve({
                 success: true,
                 topic,
                 format: msg["format"] ?? "jpeg",
-                data: msg["data"] ?? "",
+                data: typeof raw === "string" ? raw : imageDataToBase64(raw),
               });
             }
           },

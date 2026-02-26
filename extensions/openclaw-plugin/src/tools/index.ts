@@ -16,14 +16,14 @@ import { registerFollowMeDetectionTool } from "./follow-me-detection.js";
  * Register all ROS2 tools and mission tools with the OpenClaw AI agent.
  */
 export function registerTools(api: OpenClawPluginApi, config: RosClawConfig): void {
-  registerPublishTool(api);
-  registerSubscribeTool(api);
-  registerServiceTool(api);
-  registerActionTool(api);
-  registerParamTools(api);
+  registerPublishTool(api, config);
+  registerSubscribeTool(api, config);
+  registerServiceTool(api, config);
+  registerActionTool(api, config);
+  registerParamTools(api, config);
   registerIntrospectTool(api);
-  registerCameraTool(api);
-  registerDepthDistanceTool(api);
+  registerCameraTool(api, config);
+  registerDepthDistanceTool(api, config);
   registerOllamaStatusTool(api, config);
   registerFollowMeDetectionTool(api, config);
   registerFollowRobotTool(api, config);

@@ -2,7 +2,7 @@
 
 ## When to Use
 
-Use this skill when the user wants to see what the robot sees:
+Use this skill when the user wants to see what the robot sees. **Always call the tool**—do not assume the transport cannot decode camera topics; RosClaw supports Image and CompressedImage over Zenoh and rosbridge.
 - "What do you see?"
 - "Take a photo"
 - "Show me the camera"

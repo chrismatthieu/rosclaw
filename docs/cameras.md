@@ -1,6 +1,8 @@
 # Camera Support
 
-The RosClaw plugin’s **ros2_camera_snapshot** tool captures a single frame from any ROS2 image topic and returns it as base64 for display in chat.
+The RosClaw plugin’s **ros2_camera_snapshot** tool captures a single frame from any ROS2 image topic and returns it as base64 for display in chat. With **Zenoh** (Mode D), the plugin decodes `sensor_msgs/msg/Image` and `sensor_msgs/msg/CompressedImage` from CDR; no rosbridge is required.
+
+**After updating the plugin** (e.g. pulling code that adds Image/CompressedImage over Zenoh), **restart the OpenClaw gateway** so it loads the new code: `openclaw gateway restart`. Otherwise the assistant may still report “CDR subscribe not implemented for Image/CompressedImage”.
 
 ## Message types
 

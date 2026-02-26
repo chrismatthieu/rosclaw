@@ -1,12 +1,14 @@
 import { Type } from "@sinclair/typebox";
 import type { OpenClawPluginApi } from "../plugin-api.js";
+import type { RosClawConfig } from "../config.js";
+import { toNamespacedTopic } from "../topic-utils.js";
 import { getTransport } from "../service.js";
 
 /**
  * Register the ros2_publish tool with the AI agent.
  * Allows publishing messages to any ROS2 topic.
  */
-export function registerPublishTool(api: OpenClawPluginApi): void {
+export function registerPublishTool(api: OpenClawPluginApi, config: RosClawConfig): void {
   api.registerTool({
     name: "ros2_publish",
     label: "ROS2 Publish",
@@ -22,7 +24,8 @@ export function registerPublishTool(api: OpenClawPluginApi): void {
     }),
 
     async execute(_toolCallId, params) {
-      const topic = params["topic"] as string;
+      const rawTopic = params["topic"] as string;
+      const topic = toNamespacedTopic(config, rawTopic);
       const type = params["type"] as string;
       const message = params["message"] as Record<string, unknown>;
 

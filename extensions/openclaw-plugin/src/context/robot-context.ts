@@ -187,6 +187,9 @@ function buildDynamicContext(
 - Maximum angular velocity: 1.5 rad/s
 - All velocity commands are validated before execution
 
+### Camera / "What does the robot see?"
+- When the user asks what the robot sees (or for a photo, camera view, or snapshot), **always call \`ros2_camera_snapshot\`** (or \`ros2_subscribe_once\` on a camera topic). Do not assume the transport cannot decode images—RosClaw supports \`sensor_msgs/msg/Image\` and \`sensor_msgs/msg/CompressedImage\` over Zenoh and rosbridge. If the tool returns an error, report it; otherwise show or describe the image.
+
 ### Tips
 - Use \`ros2_list_topics\` to discover all available topics
 - Use \`ros2_subscribe_once\` to read the current value of any topic
@@ -221,6 +224,9 @@ ${USER_INTERFACE_BLURB}
 - Maximum linear velocity: 1.0 m/s
 - Maximum angular velocity: 1.5 rad/s
 - All velocity commands are validated before execution
+
+### Camera / "What does the robot see?"
+- When the user asks what the robot sees (or for a photo, camera view, or snapshot), **always call \`ros2_camera_snapshot\`** (or \`ros2_subscribe_once\` on a camera topic). Do not assume the transport cannot decode images—RosClaw supports \`sensor_msgs/msg/Image\` and \`sensor_msgs/msg/CompressedImage\` over Zenoh and rosbridge. If the tool returns an error, report it; otherwise show or describe the image.
 
 ### Tips
 - Use \`ros2_list_topics\` to discover all available topics

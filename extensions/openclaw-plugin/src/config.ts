@@ -9,7 +9,16 @@ const IceServerSchema = z.object({
 export const RosClawConfigSchema = z.object({
   transport: z
     .object({
-      mode: z.enum(["rosbridge", "local", "webrtc"]).default("rosbridge"),
+      mode: z.enum(["rosbridge", "local", "webrtc", "zenoh"]).default("rosbridge"),
+    })
+    .default({}),
+
+  zenoh: z
+    .object({
+      routerEndpoint: z.string().default("tcp/localhost:7447"),
+      domainId: z.number().default(0),
+      /** "ros2dds" = zenoh-bridge-ros2dds key format (slashes kept). "rmw_zenoh" = rmw_zenoh key format (domain + %). */
+      keyFormat: z.enum(["ros2dds", "rmw_zenoh"]).default("ros2dds"),
     })
     .default({}),
 

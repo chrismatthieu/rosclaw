@@ -112,6 +112,15 @@ export interface WebRTCTransportConfig {
   };
 }
 
+export interface ZenohTransportConfig {
+  mode: "zenoh";
+  zenoh: {
+    routerEndpoint: string;
+    domainId?: number;
+    keyFormat?: "ros2dds" | "rmw_zenoh";
+  };
+}
+
 export interface RTCIceServerConfig {
   urls: string | string[];
   username?: string;
@@ -122,4 +131,5 @@ export interface RTCIceServerConfig {
 export type TransportConfig =
   | RosbridgeTransportConfig
   | LocalTransportConfig
-  | WebRTCTransportConfig;
+  | WebRTCTransportConfig
+  | ZenohTransportConfig;

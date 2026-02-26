@@ -12,8 +12,8 @@
         "properties": {
           "mode": {
             "type": "string",
-            "enum": ["rosbridge", "local", "webrtc"],
-            "description": "Transport mode: rosbridge (Mode B), local (Mode A), or webrtc (Mode C)",
+            "enum": ["rosbridge", "local", "webrtc", "zenoh"],
+            "description": "Transport mode: rosbridge (Mode B), local (Mode A), webrtc (Mode C), or zenoh (Mode D)",
             "default": "rosbridge"
           }
         }
@@ -46,6 +46,27 @@
             "type": "number",
             "description": "ROS2 domain ID for local DDS communication",
             "default": 0
+          }
+        }
+      },
+      "zenoh": {
+        "type": "object",
+        "properties": {
+          "routerEndpoint": {
+            "type": "string",
+            "description": "Zenoh router endpoint (e.g. ws://localhost:10000 for zenoh-ts)",
+            "default": "tcp/localhost:7447"
+          },
+          "domainId": {
+            "type": "number",
+            "description": "ROS2 domain ID (matches rmw_zenoh)",
+            "default": 0
+          },
+          "keyFormat": {
+            "type": "string",
+            "enum": ["ros2dds", "rmw_zenoh"],
+            "description": "Use ros2dds when using zenoh-bridge-ros2dds; use rmw_zenoh when robot uses Zenoh RMW directly",
+            "default": "ros2dds"
           }
         }
       },
@@ -151,7 +172,15 @@
   "uiHints": {
     "transport.mode": {
       "label": "Transport Mode",
-      "description": "How the plugin connects to ROS2: rosbridge (WebSocket), local (DDS), or webrtc (P2P)"
+      "description": "How the plugin connects to ROS2: rosbridge (WebSocket), local (DDS), webrtc (P2P), or zenoh (Mode D)"
+    },
+    "zenoh.routerEndpoint": {
+      "label": "Zenoh Router Endpoint",
+      "placeholder": "ws://localhost:10000"
+    },
+    "zenoh.domainId": {
+      "label": "Zenoh Domain ID",
+      "advanced": true
     },
     "rosbridge.url": {
       "label": "Rosbridge URL",
@@ -163,7 +192,7 @@
     },
     "robot.namespace": {
       "label": "ROS2 Robot Namespace",
-      "description": "Namespace for this robot's topics (e.g. robot3946b404c33e4aa39a8d16deb1c5c593). cmd_vel will be <namespace>/cmd_vel.",
+      "description": "ROS2 topic namespace; e.g. robot-uuid gives topics like /robot-uuid/cmd_vel",
       "placeholder": ""
     },
     "safety.maxLinearVelocity": {
