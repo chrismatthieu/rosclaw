@@ -111,6 +111,14 @@ If you don’t have ROS on your host (e.g. macOS with only OpenClaw and Docker):
 
 For manual steps, see **[Robot Setup Guide](docs/robot-setup.md)**. Quick path: `./scripts/setup_robot.sh` on the robot, `./scripts/setup_gateway_plugin.sh` where OpenClaw runs, then `./scripts/run_demo_native.sh` to start the bridges.
 
+### Phase 3: Teleop Web App
+
+When the gateway supports plugin HTTP routes, open the **teleop web app** in a browser for live camera and twist controls:
+
+- **URL:** `http://<gateway-host>:<port>/rosclaw/teleop/` (e.g. `http://localhost:18789/rosclaw/teleop/`)
+- Supports 2D webcam and RealSense; if multiple camera streams exist, choose the source from a dropdown.
+- See [Teleop (Phase 3)](docs/teleop.md) for config and requirements.
+
 ### Try It
 
 Send a message to your robot:

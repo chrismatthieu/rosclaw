@@ -57,6 +57,24 @@ export const RosClawConfigSchema = z.object({
     })
     .default({}),
 
+  /** Phase 3 teleop web app: camera + twist controls. */
+  teleop: z
+    .object({
+      /** Default camera topic when only one source or as default selection. Falls back to robot.cameraTopic then RealSense default. */
+      cameraTopic: z.string().default(""),
+      /** Explicit list of camera sources for the selector; if empty, derived from listTopics() filtered by Image/CompressedImage. */
+      cameraTopics: z
+        .array(z.object({ topic: z.string(), label: z.string().optional() }))
+        .default([]),
+      /** cmd_vel topic override (default from robot namespace). */
+      cmdVelTopic: z.string().default(""),
+      /** Default linear speed (m/s) for teleop. */
+      speedDefault: z.number().min(0).max(2).default(0.3),
+      /** Camera poll interval in ms for the teleop page. */
+      cameraPollMs: z.number().min(50).max(2000).default(150),
+    })
+    .default({}),
+
   safety: z
     .object({
       maxLinearVelocity: z.number().default(1.0),

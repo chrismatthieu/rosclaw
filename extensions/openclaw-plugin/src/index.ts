@@ -6,6 +6,7 @@ import { registerSafetyHook } from "./safety/validator.js";
 import { registerRobotContext } from "./context/robot-context.js";
 import { registerEstopCommand } from "./commands/estop.js";
 import { registerTransportCommand } from "./commands/transport.js";
+import { registerTeleopRoutes } from "./teleop/routes.js";
 import { isCdrTypeSupported } from "./transport/zenoh/cdr.js";
 
 /**
@@ -37,6 +38,10 @@ export default {
     // Register direct commands (bypass AI)
     registerEstopCommand(api, config);
     registerTransportCommand(api, config);
+
+    if (typeof api.registerHttpRoute === "function") {
+      registerTeleopRoutes(api, config);
+    }
 
     api.logger.info("RosClaw plugin loaded successfully");
   },
