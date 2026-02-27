@@ -69,7 +69,7 @@ export const RosClawConfigSchema = z.object({
       /** cmd_vel topic override (default from robot namespace). */
       cmdVelTopic: z.string().default(""),
       /** Default linear speed (m/s) for teleop. */
-      speedDefault: z.number().min(0).max(2).default(0.3),
+      speedDefault: z.coerce.number().min(0).max(2).default(0.3),
       /** Camera poll interval in ms for the teleop page. */
       cameraPollMs: z.number().min(50).max(2000).default(150),
     })

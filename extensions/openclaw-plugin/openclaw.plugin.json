@@ -122,7 +122,27 @@
             "type": "string",
             "description": "ROS2 topic namespace so cmd_vel and other root-level topics are published to /<namespace>/<topic> (e.g. robot3946b404c33e4aa39a8d16deb1c5c593 → /robot3946.../cmd_vel). Required if the robot base subscribes to a namespaced cmd_vel.",
             "default": ""
+          },
+          "cameraTopic": {
+            "type": "string",
+            "description": "Camera topic for what do you see and default for teleop",
+            "default": ""
           }
+        }
+      },
+      "teleop": {
+        "type": "object",
+        "description": "Teleop web app: camera and twist controls",
+        "properties": {
+          "cameraTopic": { "type": "string", "default": "" },
+          "cameraTopics": {
+            "type": "array",
+            "items": { "type": "object", "properties": { "topic": { "type": "string" }, "label": { "type": "string" } } },
+            "default": []
+          },
+          "cmdVelTopic": { "type": "string", "default": "" },
+          "speedDefault": { "type": "number", "description": "Default linear speed (m/s) for teleop", "default": 0.3, "minimum": 0, "maximum": 2 },
+          "cameraPollMs": { "type": "number", "default": 150, "minimum": 50, "maximum": 2000 }
         }
       },
       "safety": {
@@ -149,23 +169,23 @@
             }
           }
         }
-      }
-    },
-    "followMe": {
-      "type": "object",
-      "description": "Native Follow Me: depth (and optional Ollama) + cmd_vel. Default is depth-only (no Qwen).",
-      "properties": {
-        "useOllama": { "type": "boolean", "description": "If false (default), use depth only—no Ollama. Set true to use Qwen for person detection and left/right steering.", "default": false },
-        "ollamaUrl": { "type": "string", "description": "Ollama API URL (used when useOllama is true)", "default": "http://localhost:11434" },
-        "vlmModel": { "type": "string", "description": "Vision model when useOllama is true (e.g. qwen3-vl:2b)", "default": "qwen3-vl:2b" },
-        "cameraTopic": { "type": "string", "description": "ROS2 camera topic", "default": "/camera/image_raw/compressed" },
-        "cameraMessageType": { "type": "string", "enum": ["CompressedImage", "Image"], "default": "CompressedImage" },
-        "cmdVelTopic": { "type": "string", "description": "Override cmd_vel topic (e.g. /robot3946.../cmd_vel). Empty = use robot.namespace + /cmd_vel", "default": "" },
-        "targetDistance": { "type": "number", "description": "Follow distance (m)", "default": 0.5 },
-        "rateHz": { "type": "number", "description": "Loop rate (1–15)", "default": 5 },
-        "minLinearVelocity": { "type": "number", "description": "Min linear speed (m/s) so base moves (e.g. 0.3)", "default": 0.3 },
-        "depthTopic": { "type": "string", "description": "Optional depth topic (RealSense) for real distance vs targetDistance. Empty = VLM distance_hint only.", "default": "" },
-        "visionCallbackUrl": { "type": "string", "description": "Optional HTTP URL for human detection (e.g. OpenAI proxy). POST { \"image\": \"<base64>\" }; expect JSON with person_visible, position?, distance_hint?. Distance for follow comes from RealSense depth.", "default": "" }
+      },
+      "followMe": {
+        "type": "object",
+        "description": "Native Follow Me: depth (and optional Ollama) + cmd_vel. Default is depth-only (no Qwen).",
+        "properties": {
+          "useOllama": { "type": "boolean", "description": "If false (default), use depth only—no Ollama. Set true to use Qwen for person detection and left/right steering.", "default": false },
+          "ollamaUrl": { "type": "string", "description": "Ollama API URL (used when useOllama is true)", "default": "http://localhost:11434" },
+          "vlmModel": { "type": "string", "description": "Vision model when useOllama is true (e.g. qwen3-vl:2b)", "default": "qwen3-vl:2b" },
+          "cameraTopic": { "type": "string", "description": "ROS2 camera topic", "default": "/camera/image_raw/compressed" },
+          "cameraMessageType": { "type": "string", "enum": ["CompressedImage", "Image"], "default": "CompressedImage" },
+          "cmdVelTopic": { "type": "string", "description": "Override cmd_vel topic (e.g. /robot3946.../cmd_vel). Empty = use robot.namespace + /cmd_vel", "default": "" },
+          "targetDistance": { "type": "number", "description": "Follow distance (m)", "default": 0.5 },
+          "rateHz": { "type": "number", "description": "Loop rate (1–15)", "default": 5 },
+          "minLinearVelocity": { "type": "number", "description": "Min linear speed (m/s) so base moves (e.g. 0.3)", "default": 0.3 },
+          "depthTopic": { "type": "string", "description": "Optional depth topic (RealSense) for real distance vs targetDistance. Empty = VLM distance_hint only.", "default": "" },
+          "visionCallbackUrl": { "type": "string", "description": "Optional HTTP URL for human detection (e.g. OpenAI proxy). POST { \"image\": \"<base64>\" }; expect JSON with person_visible, position?, distance_hint?. Distance for follow comes from RealSense depth.", "default": "" }
+        }
       }
     }
   },
