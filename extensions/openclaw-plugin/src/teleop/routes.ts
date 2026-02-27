@@ -88,6 +88,18 @@ function imageDataToBuffer(data: unknown): Buffer | null {
   return null;
 }
 
+/** Shared latest-frame cache: one subscription per topic, serve from cache so polling doesn't timeout. */
+type CameraCacheState = {
+  topic: string;
+  sub: { unsubscribe(): void } | null;
+  cache: Buffer | null;
+  mime: string;
+  firstFrameResolve: ((r: { buf: Buffer; mime: string }) => void) | null;
+  firstFrameReject: ((e: Error) => void) | null;
+  firstFrameTimeout: ReturnType<typeof setTimeout> | null;
+};
+let cameraCacheState: CameraCacheState | null = null;
+
 /**
  * Register Phase 3 teleop HTTP routes (sources, camera, twist, index page).
  * Only registers when api.registerHttpRoute is available.
@@ -162,60 +174,113 @@ export function registerTeleopRoutes(api: OpenClawPluginApi, config: RosClawConf
       if (!topic) topic = getDefaultCameraTopic(config);
       const typeParam = (searchParams.get("type") ?? "compressed").toLowerCase();
       const useImage = typeParam === "image";
-      const type = useImage ? IMAGE_TYPE : COMPRESSED_IMAGE_TYPE;
       const resolvedTopic = toNamespacedTopic(config, topic);
 
+      if (useImage) {
+        res.setHeader("Content-Type", "application/json");
+        res.statusCode = 501;
+        res.end(
+          JSON.stringify({
+            error: "Raw Image topics not supported; use a CompressedImage topic (e.g. .../image_raw/compressed)",
+          }),
+        );
+        return;
+      }
+
       try {
-        const transport = getTransport();
-        await new Promise((r) => setTimeout(r, 350));
-        const result = await new Promise<Record<string, unknown>>((resolve, reject) => {
-          const timeout = 4000;
-          const sub = transport.subscribe(
-            { topic: resolvedTopic, type },
+        if (cameraCacheState?.topic !== resolvedTopic) {
+          if (cameraCacheState?.sub) {
+            cameraCacheState.sub.unsubscribe();
+            if (cameraCacheState.firstFrameTimeout) clearTimeout(cameraCacheState.firstFrameTimeout);
+          }
+          cameraCacheState = {
+            topic: resolvedTopic,
+            sub: null,
+            cache: null,
+            mime: "image/jpeg",
+            firstFrameResolve: null,
+            firstFrameReject: null,
+            firstFrameTimeout: null,
+          };
+        }
+        const state = cameraCacheState;
+
+        if (state.cache && state.cache.length > 0) {
+          res.setHeader("Content-Type", state.mime);
+          res.setHeader("Cache-Control", "no-store");
+          res.statusCode = 200;
+          res.end(state.cache);
+          return;
+        }
+
+        if (!state.sub) {
+          const transport = getTransport();
+          const firstFramePromise = new Promise<{ buf: Buffer; mime: string }>((resolve, reject) => {
+            state.firstFrameResolve = resolve;
+            state.firstFrameReject = reject;
+            state.firstFrameTimeout = setTimeout(() => {
+              if (state.firstFrameReject) {
+                state.firstFrameReject(new Error("timeout"));
+                state.firstFrameResolve = null;
+                state.firstFrameReject = null;
+                state.firstFrameTimeout = null;
+              }
+            }, 5000);
+          });
+          state.sub = transport.subscribe(
+            { topic: resolvedTopic, type: COMPRESSED_IMAGE_TYPE },
             (msg: Record<string, unknown>) => {
-              sub.unsubscribe();
-              resolve(msg);
+              const data = msg["data"];
+              const buf = imageDataToBuffer(data);
+              if (!buf || buf.length === 0) return;
+              const format = String(msg["format"] ?? "jpeg").toLowerCase();
+              state.mime = format === "png" ? "image/png" : "image/jpeg";
+              state.cache = buf;
+              if (state.firstFrameTimeout) {
+                clearTimeout(state.firstFrameTimeout);
+                state.firstFrameTimeout = null;
+              }
+              if (state.firstFrameResolve) {
+                state.firstFrameResolve({ buf, mime: state.mime });
+                state.firstFrameResolve = null;
+                state.firstFrameReject = null;
+              }
             },
           );
-          setTimeout(() => {
-            sub.unsubscribe();
-            reject(new Error("timeout"));
-          }, timeout);
-        });
-
-        // CompressedImage: data is raw JPEG/PNG bytes — return as-is
-        if (!useImage) {
-          const data = result["data"];
-          const buf = imageDataToBuffer(data);
-          if (!buf || buf.length === 0) {
-            res.statusCode = 204;
-            res.end();
-            return;
-          }
-          const format = String(result["format"] ?? "jpeg").toLowerCase();
-          const mime = format === "png" ? "image/png" : "image/jpeg";
+          const { buf, mime } = await firstFramePromise;
           res.setHeader("Content-Type", mime);
+          res.setHeader("Cache-Control", "no-store");
           res.statusCode = 200;
           res.end(buf);
           return;
         }
 
-        // Image (raw): we don't have a JPEG encoder; return 501 and suggest CompressedImage
-        res.setHeader("Content-Type", "application/json");
-        res.statusCode = 501;
-        res.end(
-          JSON.stringify({
-            error: "Raw Image topics not supported for teleop camera; use a CompressedImage topic (e.g. .../image_raw/compressed)",
-          }),
-        );
+        const waitForFirst = new Promise<{ buf: Buffer; mime: string }>((resolve, reject) => {
+          const deadline = Date.now() + 5000;
+          const check = () => {
+            if (state.cache && state.cache.length > 0) {
+              resolve({ buf: state.cache, mime: state.mime });
+              return;
+            }
+            if (Date.now() >= deadline) {
+              reject(new Error("timeout"));
+              return;
+            }
+            setTimeout(check, 30);
+          };
+          check();
+        });
+        const { buf, mime } = await waitForFirst;
+        res.setHeader("Content-Type", mime);
+        res.setHeader("Cache-Control", "no-store");
+        res.statusCode = 200;
+        res.end(buf);
       } catch (e) {
+        const msg = e instanceof Error ? e.message : "Failed to get camera frame";
+        api.logger.warn("Teleop camera error: " + msg);
         res.setHeader("Content-Type", "application/json");
         res.statusCode = 500;
-        res.end(
-          JSON.stringify({
-            error: e instanceof Error ? e.message : "Failed to get camera frame",
-          }),
-        );
+        res.end(JSON.stringify({ error: msg }));
       }
     },
   });
