@@ -29,8 +29,9 @@ export function getTeleopPageHtml(config: RosClawConfig): string {
     .speed-wrap input[type="range"] { width: 100px; }
     .btn-wrap { display: flex; flex-direction: column; gap: 4px; align-items: center; }
     .btn-row { display: flex; gap: 8px; justify-content: center; }
-    button { padding: 12px 20px; font-size: 1rem; border-radius: 8px; border: none; cursor: pointer; background: #333; color: #e0e0e0; }
-    button:active, button.active { background: #0a7; color: #fff; }
+    button { padding: 12px 20px; font-size: 1rem; border-radius: 8px; border: none; cursor: pointer; color: #fff; }
+    button:not(.stop) { background: #086; }
+    button:not(.stop):active, button:not(.stop).active { background: #0c9; }
     button.stop { background: #822; }
     button.stop:active { background: #c33; }
     .status { font-size: 0.85rem; color: #888; margin-top: 8px; }
@@ -142,7 +143,10 @@ export function getTeleopPageHtml(config: RosClawConfig): string {
     }).catch(function(e) { setStatus('Twist error: ' + e.message); });
   }
 
-  function stop() { sendTwist(0,0,0,0,0,0); }
+  function stop() {
+    sendTwist(0,0,0,0,0,0);
+    document.querySelectorAll('.btn-wrap button:not(.stop)').forEach(function(b) { b.classList.remove('active'); });
+  }
 
   ['btn-fwd','btn-back','btn-left','btn-right'].forEach(function(id) {
     const btn = document.getElementById(id);
