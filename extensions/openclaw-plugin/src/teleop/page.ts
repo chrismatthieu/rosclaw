@@ -35,10 +35,13 @@ export function getTeleopPageHtml(config: RosClawConfig): string {
     button.stop { background: #822; }
     button.stop:active { background: #c33; }
     .status { font-size: 0.85rem; color: #888; margin-top: 8px; }
+    a { color: #0c9; text-decoration: none; }
+    a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
   <h1>RosClaw Teleop</h1>
+  <p><a href="/rosclaw/">Back to RosClaw</a></p>
   <div class="camera-wrap">
     <img id="camera" src="" alt="Camera" style="display:none" />
     <div id="no-feed" class="no-feed">Select a camera source (or waiting for feed)</div>
